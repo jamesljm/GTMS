@@ -24,6 +24,7 @@ ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 RUN pnpm --filter frontend build
+RUN mkdir -p /app/packages/frontend/public
 
 # Production
 FROM base AS runner
