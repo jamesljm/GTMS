@@ -18,7 +18,8 @@ const taskInclude = {
   createdBy: { select: { id: true, name: true, email: true } },
   parent: { select: { id: true, title: true } },
   subtasks: { select: { id: true, title: true, status: true, priority: true, dueDate: true, assignee: { select: { id: true, name: true } } } },
-  _count: { select: { notes: true, subtasks: true } },
+  attachments: { select: { id: true, filename: true, mimeType: true, size: true, createdAt: true } },
+  _count: { select: { notes: true, subtasks: true, attachments: true } },
 };
 
 // GET / - list tasks with filters

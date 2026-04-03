@@ -24,6 +24,7 @@ model User {
   assignedTasks Task[]         @relation("AssignedTasks")
   createdTasks  Task[]         @relation("CreatedTasks")
   notes         Note[]
+  attachments   Attachment[]
   chatSessions  ChatSession[]
   chatMessages  ChatMessage[]
   reminderLogs  ReminderLog[]
@@ -69,6 +70,7 @@ model Task {
   subtasks Task[]  @relation("Subtasks")
 
   notes        Note[]
+  attachments  Attachment[]
   reminderLogs ReminderLog[]
 
   createdAt DateTime @default(now())
@@ -144,6 +146,24 @@ model ReminderLog {
   emailId     String?  // Resend message ID
 
   @@index([recipientId])
+  @@index([taskId])
+}
+
+model Attachment {
+  id       String @id @default(uuid())
+  filename String
+  mimeType String
+  size     Int
+  data     Bytes
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  uploadedById String
+  uploadedBy   User @relation(fields: [uploadedById], references: [id])
+
+  createdAt DateTime @default(now())
+
   @@index([taskId])
 }
 
