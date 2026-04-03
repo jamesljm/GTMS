@@ -1,0 +1,50 @@
+import { Router, Request, Response, NextFunction } from 'express';
+import { prisma } from '../prisma';
+import { validate } from '../middleware/validate';
+import { addNoteSchema } from 'shared';
+import { AppError } from '../middleware/error';
+
+const router = Router();
+
+function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    fn(req, res).catch(next);
+  };
+}
+
+// POST / - add note to a task
+router.post('/', validate(addNoteSchema), asyncHandler(async (req: Request, res: Response) => {
+  const { taskId, content, type } = req.body;
+
+  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  if (!task) throw new AppError(404, 'Task not found');
+
+  const note = await prisma.note.create({
+    data: {
+      taskId,
+      content,
+      type,
+      authorId: req.user!.id,
+    },
+    include: {
+      author: { select: { id: true, name: true, email: true } },
+    },
+  });
+
+  res.status(201).json(note);
+}));
+
+// GET /task/:taskId - list notes for a task
+router.get('/task/:taskId', asyncHandler(async (req: Request, res: Response) => {
+  const notes = await prisma.note.findMany({
+    where: { taskId: req.params.taskId },
+    include: {
+      author: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  res.json(notes);
+}));
+
+export default router;

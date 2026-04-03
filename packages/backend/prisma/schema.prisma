@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("STAFF") // ED, HOD, MANAGER, STAFF
+  position     String?
+  department   String?
+  phone        String?
+  isActive     Boolean  @default(true)
+  microsoftId  String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignedTasks Task[]         @relation("AssignedTasks")
+  createdTasks  Task[]         @relation("CreatedTasks")
+  notes         Note[]
+  chatSessions  ChatSession[]
+  chatMessages  ChatMessage[]
+  reminderLogs  ReminderLog[]
+}
+
+model Workstream {
+  id          String   @id @default(uuid())
+  code        String   @unique // STR, COM, IR, IT, HR, FIN, ESG, OPS, LEG, ACU, GPL, ADM, FAN, TEN, RT
+  name        String
+  description String?
+  color       String   @default("#6366f1")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tasks Task[]
+}
+
+model Task {
+  id             String   @id @default(uuid())
+  title          String
+  description    String?
+  type           String   @default("My Action") // My Action, Waiting On, Decision, Review, Recurring
+  status         String   @default("Not Started") // Not Started, In Progress, Waiting On, Blocked, Done, Cancelled
+  priority       String   @default("Medium") // Critical, High, Medium, Low
+  source         String   @default("Manual") // Chat, Email, Manual, Recurring
+  dueDate        DateTime?
+  completedAt    DateTime?
+  waitingOnWhom  String?
+  recurringCron  String?
+
+  workstreamId String?
+  workstream   Workstream? @relation(fields: [workstreamId], references: [id])
+
+  assigneeId String?
+  assignee   User?   @relation("AssignedTasks", fields: [assigneeId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("CreatedTasks", fields: [createdById], references: [id])
+
+  parentId String?
+  parent   Task?   @relation("Subtasks", fields: [parentId], references: [id])
+  subtasks Task[]  @relation("Subtasks")
+
+  notes        Note[]
+  reminderLogs ReminderLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workstreamId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+  @@index([parentId])
+}
+
+model Note {
+  id      String @id @default(uuid())
+  content String
+  type    String @default("Comment") // Comment, Status Update, Blocker Report, System Log
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+model ChatSession {
+  id       String @id @default(uuid())
+  title    String @default("New Chat")
+  summary  String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  messages ChatMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id      String @id @default(uuid())
+  role    String // user, assistant
+  content String
+
+  toolCalls  String? // JSON string of tool calls/results
+  actionTaken String? // JSON string of actions performed
+
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+model ReminderLog {
+  id          String   @id @default(uuid())
+  type        String   // daily_digest, weekly_digest, task_reminder, overdue_alert, blocker_escalation
+  recipientId String
+  recipient   User     @relation(fields: [recipientId], references: [id])
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id])
+  sentAt      DateTime @default(now())
+  emailId     String?  // Resend message ID
+
+  @@index([recipientId])
+  @@index([taskId])
+}
+
+model AppSetting {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String
+}
