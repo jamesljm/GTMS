@@ -6,8 +6,16 @@ import { sendDailyDigest, sendWeeklyDigest, sendTaskReminder } from './email';
 
 let connection: IORedis | null = null;
 
+function isRedisConfigured(): boolean {
+  const url = config.REDIS_URL;
+  return !!(url && url !== 'redis://localhost:6379' && url.startsWith('redis'));
+}
+
 function getConnection() {
   if (!connection) {
+    if (!isRedisConfigured()) {
+      throw new Error('Redis not configured');
+    }
     connection = new IORedis(config.REDIS_URL, { maxRetriesPerRequest: null });
   }
   return connection;
