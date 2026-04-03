@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback, useEffect, Suspense } from "react";
+import { useState, useCallback, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useTasks } from "@/hooks/use-tasks";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, List, Kanban, BarChart3 } from "lucide-react";
+import { Plus, List, Kanban, BarChart3, ArrowUpDown } from "lucide-react";
 import { TaskFormDialog } from "@/components/task-form";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
 import { FilterBar } from "@/components/views/filter-bar";
@@ -15,6 +16,7 @@ import { KanbanView } from "@/components/views/kanban-view";
 import { GanttView } from "@/components/views/gantt-view";
 
 type ViewType = "list" | "kanban" | "gantt";
+type GroupBy = "none" | "workstream" | "assignee" | "priority";
 
 export default function TasksPage() {
   return (
@@ -31,12 +33,36 @@ function TasksContent() {
   const initialView = (searchParams.get("view") as ViewType) || "list";
   const initialTaskId = searchParams.get("task") || null;
 
+  // Parse initial filters from URL (for dashboard drilldown)
+  const initialFilters = useMemo(() => {
+    const f: Record<string, any> = { page: 1, limit: 50, sortBy: "dueDate", sortOrder: "asc" };
+    const priority = searchParams.get("priority");
+    const status = searchParams.get("status");
+    const type = searchParams.get("type");
+    const workstreamId = searchParams.get("workstreamId");
+    const assigneeId = searchParams.get("assigneeId");
+    const sortBy = searchParams.get("sortBy");
+    const sortOrder = searchParams.get("sortOrder");
+    const dueBefore = searchParams.get("dueBefore");
+    if (priority) f.priority = priority;
+    if (status) f.status = status;
+    if (type) f.type = type;
+    if (workstreamId) f.workstreamId = workstreamId;
+    if (assigneeId) f.assigneeId = assigneeId;
+    if (sortBy) f.sortBy = sortBy;
+    if (sortOrder) f.sortOrder = sortOrder;
+    if (dueBefore) f.dueBefore = dueBefore;
+    return f;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [activeView, setActiveView] = useState<ViewType>(initialView);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initialTaskId);
   const [showCreate, setShowCreate] = useState(false);
-  const [filters, setFilters] = useState<Record<string, any>>({ page: 1, limit: 50, sortBy: "dueDate", sortOrder: "asc" });
+  const [filters, setFilters] = useState<Record<string, any>>(initialFilters);
   const [search, setSearch] = useState("");
   const [kanbanGroupBy, setKanbanGroupBy] = useState<"status" | "workstream">("status");
+  const [listGroupBy, setListGroupBy] = useState<GroupBy>("none");
 
   const { data, isLoading } = useTasks({ ...filters, search: search || undefined });
   const { data: workstreams } = useWorkstreams();
@@ -83,6 +109,13 @@ function TasksContent() {
     setFilters(prev => ({ ...prev, page }));
   }, []);
 
+  const handleSort = useCallback((sortBy: string) => {
+    setFilters(prev => {
+      const sameField = prev.sortBy === sortBy;
+      return { ...prev, sortBy, sortOrder: sameField && prev.sortOrder === "asc" ? "desc" : "asc" };
+    });
+  }, []);
+
   // Escape to close detail panel
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -127,6 +160,45 @@ function TasksContent() {
         users={users || []}
       />
 
+      {/* Sort & Group controls for list view */}
+      {activeView === "list" && (
+        <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-1.5">
+            <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Sort:</span>
+            <Select value={filters.sortBy || "dueDate"} onValueChange={v => handleSort(v)}>
+              <SelectTrigger className="h-7 w-[120px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dueDate">Due Date</SelectItem>
+                <SelectItem value="priority">Priority</SelectItem>
+                <SelectItem value="title">Title</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+                <SelectItem value="createdAt">Created</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setFilters(prev => ({ ...prev, sortOrder: prev.sortOrder === "asc" ? "desc" : "asc" }))}>
+              {filters.sortOrder === "desc" ? "Z-A" : "A-Z"}
+            </Button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">Group:</span>
+            <Select value={listGroupBy} onValueChange={v => setListGroupBy(v as GroupBy)}>
+              <SelectTrigger className="h-7 w-[120px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Grouping</SelectItem>
+                <SelectItem value="workstream">By Workstream</SelectItem>
+                <SelectItem value="assignee">By Assignee</SelectItem>
+                <SelectItem value="priority">By Priority</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
       {/* Active view */}
       {activeView === "list" && (
         <ListView
@@ -136,6 +208,8 @@ function TasksContent() {
           selectedTaskId={selectedTaskId}
           onSelectTask={handleSelectTask}
           onPageChange={handlePageChange}
+          groupBy={listGroupBy}
+          workstreams={workstreams || []}
         />
       )}
 

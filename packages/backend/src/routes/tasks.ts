@@ -40,7 +40,20 @@ router.get('/', validate(taskFilterSchema, 'query'), asyncHandler(async (req: Re
   }
   if (dueBefore || dueAfter) {
     where.dueDate = {};
-    if (dueBefore) where.dueDate.lte = new Date(dueBefore);
+    if (dueBefore === 'overdue') {
+      // Tasks due before now (overdue)
+      where.dueDate.lt = new Date();
+      where.status = { notIn: ['Done', 'Cancelled'] };
+    } else if (dueBefore === 'thisWeek') {
+      // Tasks due by end of this week
+      const endOfWeek = new Date();
+      endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()));
+      endOfWeek.setHours(23, 59, 59, 999);
+      where.dueDate.lte = endOfWeek;
+      where.status = { notIn: ['Done', 'Cancelled'] };
+    } else if (dueBefore) {
+      where.dueDate.lte = new Date(dueBefore);
+    }
     if (dueAfter) where.dueDate.gte = new Date(dueAfter);
   }
 

@@ -43,4 +43,55 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   res.json(workstream);
 }));
 
+// POST / - create workstream
+router.post('/', asyncHandler(async (req: Request, res: Response) => {
+  const { code, name, description, color, sortOrder } = req.body;
+  if (!code || !name) {
+    res.status(400).json({ error: 'code and name are required' });
+    return;
+  }
+
+  const maxSort = await prisma.workstream.aggregate({ _max: { sortOrder: true } });
+  const workstream = await prisma.workstream.create({
+    data: {
+      code: code.toUpperCase(),
+      name,
+      description: description || null,
+      color: color || '#6366f1',
+      sortOrder: sortOrder ?? (maxSort._max.sortOrder ?? 0) + 1,
+    },
+  });
+
+  res.status(201).json(workstream);
+}));
+
+// PATCH /:id - update workstream
+router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const { code, name, description, color, sortOrder } = req.body;
+  const workstream = await prisma.workstream.update({
+    where: { id: req.params.id },
+    data: {
+      ...(code !== undefined && { code: code.toUpperCase() }),
+      ...(name !== undefined && { name }),
+      ...(description !== undefined && { description }),
+      ...(color !== undefined && { color }),
+      ...(sortOrder !== undefined && { sortOrder }),
+    },
+  });
+
+  res.json(workstream);
+}));
+
+// DELETE /:id - delete workstream (only if no tasks)
+router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const count = await prisma.task.count({ where: { workstreamId: req.params.id } });
+  if (count > 0) {
+    res.status(400).json({ error: `Cannot delete workstream with ${count} tasks. Reassign tasks first.` });
+    return;
+  }
+
+  await prisma.workstream.delete({ where: { id: req.params.id } });
+  res.json({ ok: true });
+}));
+
 export default router;

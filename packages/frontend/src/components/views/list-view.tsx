@@ -1,8 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import { TaskCard } from "@/components/task-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ChevronDown } from "lucide-react";
+
+type GroupBy = "none" | "workstream" | "assignee" | "priority";
 
 interface ListViewProps {
   tasks: any[];
@@ -11,9 +15,45 @@ interface ListViewProps {
   selectedTaskId: string | null;
   onSelectTask: (taskId: string) => void;
   onPageChange: (page: number) => void;
+  groupBy?: GroupBy;
+  workstreams?: any[];
 }
 
-export function ListView({ tasks, pagination, isLoading, selectedTaskId, onSelectTask, onPageChange }: ListViewProps) {
+export function ListView({ tasks, pagination, isLoading, selectedTaskId, onSelectTask, onPageChange, groupBy = "none", workstreams = [] }: ListViewProps) {
+  const grouped = useMemo(() => {
+    if (groupBy === "none") return null;
+
+    const groups = new Map<string, { label: string; color?: string; tasks: any[] }>();
+
+    tasks.forEach(task => {
+      let key: string;
+      let label: string;
+      let color: string | undefined;
+
+      if (groupBy === "workstream") {
+        key = task.workstream?.code || "none";
+        label = task.workstream ? `${task.workstream.code} - ${task.workstream.name}` : "No Workstream";
+        color = task.workstream?.color;
+      } else if (groupBy === "assignee") {
+        key = task.assignee?.id || "unassigned";
+        label = task.assignee?.name || "Unassigned";
+      } else {
+        // priority
+        key = task.priority || "none";
+        label = task.priority || "No Priority";
+        const priorityColors: Record<string, string> = { Critical: "#ef4444", High: "#f97316", Medium: "#3b82f6", Low: "#9ca3af" };
+        color = priorityColors[key];
+      }
+
+      if (!groups.has(key)) {
+        groups.set(key, { label, color, tasks: [] });
+      }
+      groups.get(key)!.tasks.push(task);
+    });
+
+    return Array.from(groups.entries()).map(([key, g]) => ({ key, ...g }));
+  }, [tasks, groupBy]);
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -34,14 +74,36 @@ export function ListView({ tasks, pagination, isLoading, selectedTaskId, onSelec
 
   return (
     <div className="space-y-2">
-      {tasks.map((task: any) => (
-        <TaskCard
-          key={task.id}
-          task={task}
-          isSelected={selectedTaskId === task.id}
-          onClick={onSelectTask}
-        />
-      ))}
+      {grouped ? (
+        /* Grouped view */
+        grouped.map(group => (
+          <div key={group.key} className="space-y-1.5">
+            <div className="flex items-center gap-2 py-1.5 px-1">
+              {group.color && <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: group.color }} />}
+              <span className="text-sm font-medium">{group.label}</span>
+              <span className="text-xs text-muted-foreground">({group.tasks.length})</span>
+            </div>
+            {group.tasks.map((task: any) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                isSelected={selectedTaskId === task.id}
+                onClick={onSelectTask}
+              />
+            ))}
+          </div>
+        ))
+      ) : (
+        /* Flat list */
+        tasks.map((task: any) => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            isSelected={selectedTaskId === task.id}
+            onClick={onSelectTask}
+          />
+        ))
+      )}
 
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
