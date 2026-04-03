@@ -7,12 +7,25 @@ const prisma = new PrismaClient();
 const PASSWORD = 'Admin1234';
 
 async function main() {
-  console.log('Seeding GTMS database...');
+  console.log('Clearing all existing data...');
+
+  // Delete in order (respect FK constraints)
+  await prisma.attachment.deleteMany();
+  await prisma.note.deleteMany();
+  await prisma.chatMessage.deleteMany();
+  await prisma.chatSession.deleteMany();
+  await prisma.reminderLog.deleteMany();
+  await prisma.task.deleteMany();
+  await prisma.workstream.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.appSetting.deleteMany();
+
+  console.log('All data cleared. Seeding...');
   const passwordHash = await bcrypt.hash(PASSWORD, 12);
 
   // --- USERS ---
   const users = [
-    { email: 'ed@gtms.com', name: 'Dato\' Sri AR', role: 'ED', position: 'Executive Director', department: 'Board' },
+    { email: 'ed@gtms.com', name: "Dato' Sri AR", role: 'ED', position: 'Executive Director', department: 'Board' },
     { email: 'june@geohan.com', name: 'June Tan', role: 'HOD', position: 'CFO', department: 'Finance' },
     { email: 'kevin@geohan.com', name: 'Kevin Lim', role: 'HOD', position: 'Head of IT', department: 'IT' },
     { email: 'sarah@geohan.com', name: 'Sarah Wong', role: 'HOD', position: 'Head of HR', department: 'HR' },
@@ -28,15 +41,22 @@ async function main() {
     { email: 'grace@geohan.com', name: 'Grace Ong', role: 'MANAGER', position: 'Fund & Acquisitions', department: 'Fund & Acquisitions' },
     { email: 'zul@geohan.com', name: 'Zul Hakim', role: 'MANAGER', position: 'GPL Manager', department: 'GPL' },
     { email: 'rachel@geohan.com', name: 'Rachel Tan', role: 'STAFF', position: 'Accounts Executive', department: 'Finance' },
+    { email: 'alvin@geohan.com', name: 'Alvin Lau', role: 'STAFF', position: 'Internal Audit', department: 'Finance' },
+    { email: 'yc@geohan.com', name: 'Yung Cien', role: 'STAFF', position: 'Executive', department: 'Admin' },
+    { email: 'ken@geohan.com', name: 'Ken Ooi', role: 'STAFF', position: 'Executive', department: 'Finance' },
+    { email: 'alia@geohan.com', name: 'Alia Razak', role: 'STAFF', position: 'Project Admin', department: 'Operations' },
+    { email: 'joseph@geohan.com', name: 'Joseph Lim', role: 'STAFF', position: 'Compliance Officer', department: 'Legal' },
+    { email: 'jiva@geohan.com', name: 'Jiva Kumar', role: 'STAFF', position: 'Finance Executive', department: 'Finance' },
+    { email: 'athirah@geohan.com', name: 'Athirah Noor', role: 'STAFF', position: 'Finance Executive', department: 'Finance' },
+    { email: 'jiemin@geohan.com', name: 'Jie Min', role: 'MANAGER', position: 'IT & Digitalisation', department: 'IT' },
+    { email: 'jinghui@geohan.com', name: 'Jing Hui', role: 'STAFF', position: 'Quantity Surveyor', department: 'Commercial' },
+    { email: 'jeremy@geohan.com', name: 'Jeremy Loh', role: 'MANAGER', position: 'Site Manager', department: 'Operations' },
+    { email: 'mroh@geohan.com', name: 'Mr Oh', role: 'MANAGER', position: 'Senior Manager', department: 'Operations' },
   ];
 
   const createdUsers: Record<string, string> = {};
   for (const u of users) {
-    const user = await prisma.user.upsert({
-      where: { email: u.email },
-      update: { name: u.name, role: u.role, position: u.position, department: u.department, passwordHash },
-      create: { ...u, passwordHash },
-    });
+    const user = await prisma.user.create({ data: { ...u, passwordHash } });
     createdUsers[u.email] = user.id;
   }
   console.log(`Seeded ${users.length} users`);
@@ -52,177 +72,466 @@ async function main() {
     { code: 'ESG', name: 'ESG & Sustainability', color: '#22c55e', sortOrder: 7 },
     { code: 'OPS', name: 'Operations', color: '#8b5cf6', sortOrder: 8 },
     { code: 'LEG', name: 'Legal & Secretarial', color: '#64748b', sortOrder: 9 },
-    { code: 'ACU', name: 'Acumen Integration', color: '#ec4899', sortOrder: 10 },
-    { code: 'GPL', name: 'GPL & Licensing', color: '#14b8a6', sortOrder: 11 },
-    { code: 'ADM', name: 'Admin & General', color: '#a855f7', sortOrder: 12 },
-    { code: 'FAN', name: 'Fund & Acquisitions', color: '#06b6d4', sortOrder: 13 },
-    { code: 'TEN', name: 'Tender & Procurement', color: '#d97706', sortOrder: 14 },
+    { code: 'ACU', name: 'Acumatica', color: '#ec4899', sortOrder: 10 },
+    { code: 'GPL', name: 'GPL Singapore', color: '#14b8a6', sortOrder: 11 },
+    { code: 'ADM', name: 'Admin & System', color: '#a855f7', sortOrder: 12 },
+    { code: 'FAN', name: 'Financial Analysis & Simulation', color: '#06b6d4', sortOrder: 13 },
+    { code: 'TEN', name: 'Tender & Contract', color: '#d97706', sortOrder: 14 },
     { code: 'RT', name: 'Recurring & Regular', color: '#78716c', sortOrder: 15 },
   ];
 
-  const createdWorkstreams: Record<string, string> = {};
-  for (const ws of workstreams) {
-    const workstream = await prisma.workstream.upsert({
-      where: { code: ws.code },
-      update: { name: ws.name, color: ws.color, sortOrder: ws.sortOrder },
-      create: ws,
-    });
-    createdWorkstreams[ws.code] = workstream.id;
+  const ws: Record<string, string> = {};
+  for (const w of workstreams) {
+    const created = await prisma.workstream.create({ data: w });
+    ws[w.code] = created.id;
   }
   console.log(`Seeded ${workstreams.length} workstreams`);
 
-  // --- TASKS ---
+  // --- HELPERS ---
   const now = new Date();
   const edId = createdUsers['ed@gtms.com'];
 
-  const tasks = [
-    // === STRATEGY & CORPORATE (STR) ===
-    { title: 'Review 5-year strategic plan update from Board Strategy Committee', type: 'Review', priority: 'Critical', status: 'In Progress', workstream: 'STR', assignee: 'ed@gtms.com', dueDate: addDays(now, 7) },
-    { title: 'Finalize corporate restructuring proposal for AGM', type: 'My Action', priority: 'High', status: 'In Progress', workstream: 'STR', assignee: 'ed@gtms.com', dueDate: addDays(now, 14) },
-    { title: 'Prepare Board paper on M&A target shortlist', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'STR', assignee: 'ed@gtms.com', dueDate: addDays(now, 21) },
-    { title: 'Follow up with McKinsey on market study report', type: 'Waiting On', priority: 'Medium', status: 'Waiting On', workstream: 'STR', assignee: 'ed@gtms.com', waitingOnWhom: 'McKinsey', dueDate: addDays(now, 10) },
-    { title: 'Arrange strategy retreat for senior leadership team', type: 'My Action', priority: 'Medium', status: 'Not Started', workstream: 'STR', assignee: 'sarah@geohan.com', dueDate: addDays(now, 30) },
-    { title: 'Update corporate governance manual', type: 'Review', priority: 'Medium', status: 'Not Started', workstream: 'STR', assignee: 'lina@geohan.com', dueDate: addDays(now, 45) },
-    { title: 'Benchmark competitor M&A activity in SE Asia geotechnical sector', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'STR', assignee: 'ahmad@geohan.com', dueDate: addDays(now, 14) },
+  interface TaskDef {
+    title: string;
+    type?: string;
+    priority?: string;
+    status?: string;
+    workstream: string;
+    assignee?: string;
+    dueDate?: Date | null;
+    waitingOnWhom?: string;
+    description?: string;
+    subtasks?: { title: string; status?: string }[];
+  }
 
-    // === COMMERCIAL & BUSINESS DEV (COM) ===
-    { title: 'Review MRT3 tender submission package', type: 'Review', priority: 'Critical', status: 'In Progress', workstream: 'COM', assignee: 'ahmad@geohan.com', dueDate: addDays(now, 5) },
-    { title: 'Follow up with JKR on Penang highway piling contract', type: 'Waiting On', priority: 'High', status: 'Waiting On', workstream: 'COM', assignee: 'kumar@geohan.com', waitingOnWhom: 'JKR Penang', dueDate: addDays(now, 7) },
-    { title: 'Negotiate subcontractor terms for Johor CIQ project', type: 'My Action', priority: 'High', status: 'In Progress', workstream: 'COM', assignee: 'ahmad@geohan.com', dueDate: addDays(now, 10) },
-    { title: 'Prepare pre-qualification docs for Sarawak dam project', type: 'My Action', priority: 'Medium', status: 'Not Started', workstream: 'COM', assignee: 'kumar@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'Client entertainment budget review Q2', type: 'Review', priority: 'Low', status: 'Not Started', workstream: 'COM', assignee: 'june@geohan.com', dueDate: endOfMonth(now) },
-    { title: 'Update project pipeline tracker with latest wins/losses', type: 'Recurring', priority: 'Medium', status: 'Not Started', workstream: 'COM', assignee: 'ahmad@geohan.com', dueDate: nextFriday(now), recurringCron: '0 9 * * 5' },
-    { title: 'Follow up with Gamuda on JV proposal for East Coast Rail Link', type: 'Waiting On', priority: 'Critical', status: 'Waiting On', workstream: 'COM', assignee: 'ed@gtms.com', waitingOnWhom: 'Gamuda', dueDate: addDays(now, 3) },
-
-    // === INVESTOR RELATIONS (IR) ===
-    { title: 'Prepare quarterly results announcement draft', type: 'My Action', priority: 'Critical', status: 'In Progress', workstream: 'IR', assignee: 'rajan@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Schedule analyst briefing post-results announcement', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'IR', assignee: 'rajan@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'Update investor presentation deck for roadshow', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'IR', assignee: 'rajan@geohan.com', dueDate: addDays(now, 28) },
-    { title: 'Review annual report draft from designer', type: 'Review', priority: 'Medium', status: 'Waiting On', workstream: 'IR', assignee: 'ed@gtms.com', waitingOnWhom: 'Design agency', dueDate: addDays(now, 30) },
-    { title: 'Follow up with Bursa on compliance query re: related party disclosure', type: 'Waiting On', priority: 'High', status: 'Waiting On', workstream: 'IR', assignee: 'lina@geohan.com', waitingOnWhom: 'Bursa Malaysia', dueDate: addDays(now, 7) },
-    { title: 'Respond to EPF fund manager queries on order book', type: 'My Action', priority: 'High', status: 'In Progress', workstream: 'IR', assignee: 'rajan@geohan.com', dueDate: addDays(now, 2) },
-
-    // === IT & DIGITAL (IT) ===
-    { title: 'Complete ERP Phase 2 UAT testing', type: 'My Action', priority: 'Critical', status: 'In Progress', workstream: 'IT', assignee: 'kevin@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Roll out site WiFi upgrade to 12 remaining sites', type: 'My Action', priority: 'High', status: 'In Progress', workstream: 'IT', assignee: 'james@geohan.com', dueDate: addDays(now, 30) },
-    { title: 'Migrate email to Microsoft 365 (Phase 2: site offices)', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'IT', assignee: 'kevin@geohan.com', dueDate: addDays(now, 45) },
-    { title: 'Deploy GTMS (this system) to production', type: 'My Action', priority: 'Critical', status: 'In Progress', workstream: 'IT', assignee: 'james@geohan.com', dueDate: addDays(now, 7) },
-    { title: 'Review cybersecurity assessment report from KPMG', type: 'Review', priority: 'High', status: 'Waiting On', workstream: 'IT', assignee: 'kevin@geohan.com', waitingOnWhom: 'KPMG', dueDate: addDays(now, 14) },
-    { title: 'Set up backup and DR procedures for new ERP', type: 'My Action', priority: 'Medium', status: 'Not Started', workstream: 'IT', assignee: 'james@geohan.com', dueDate: addDays(now, 30) },
-    { title: 'Evaluate drone survey software for site monitoring', type: 'Decision', priority: 'Medium', status: 'Not Started', workstream: 'IT', assignee: 'kevin@geohan.com', dueDate: addDays(now, 21) },
-
-    // === HR & PEOPLE (HR) ===
-    { title: 'Finalize salary review proposal for Board approval', type: 'My Action', priority: 'Critical', status: 'In Progress', workstream: 'HR', assignee: 'sarah@geohan.com', dueDate: addDays(now, 7) },
-    { title: 'Complete annual training needs analysis', type: 'My Action', priority: 'High', status: 'In Progress', workstream: 'HR', assignee: 'sarah@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Recruit 3 senior piling engineers (urgent site requirement)', type: 'My Action', priority: 'Critical', status: 'In Progress', workstream: 'HR', assignee: 'sarah@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'Review foreign worker permit renewals (45 workers)', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'HR', assignee: 'sarah@geohan.com', dueDate: addDays(now, 30) },
-    { title: 'Organize Hari Raya staff event', type: 'My Action', priority: 'Medium', status: 'Not Started', workstream: 'HR', assignee: 'anis@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'Follow up with insurance broker on group medical policy renewal', type: 'Waiting On', priority: 'High', status: 'Waiting On', workstream: 'HR', assignee: 'sarah@geohan.com', waitingOnWhom: 'AIA broker', dueDate: addDays(now, 10) },
-    { title: 'Update employee handbook with new leave policies', type: 'My Action', priority: 'Medium', status: 'Not Started', workstream: 'HR', assignee: 'sarah@geohan.com', dueDate: addDays(now, 45) },
-
-    // === FINANCE & ACCOUNTS (FIN) ===
-    { title: 'Follow up with June on OCBC e-giro setup', type: 'Waiting On', priority: 'High', status: 'Waiting On', workstream: 'FIN', assignee: 'june@geohan.com', waitingOnWhom: 'OCBC bank', dueDate: addDays(now, 5) },
-    { title: 'Review monthly management accounts (March)', type: 'Review', priority: 'Critical', status: 'In Progress', workstream: 'FIN', assignee: 'june@geohan.com', dueDate: addDays(now, 3) },
-    { title: 'Prepare tax planning memo for FY end', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'FIN', assignee: 'june@geohan.com', dueDate: addDays(now, 30) },
-    { title: 'Finalize audit adjustments with Ernst & Young', type: 'My Action', priority: 'Critical', status: 'In Progress', workstream: 'FIN', assignee: 'june@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Resolve outstanding intercompany balances (RM2.3M)', type: 'My Action', priority: 'High', status: 'In Progress', workstream: 'FIN', assignee: 'mei@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Review cash flow forecast for next 6 months', type: 'Review', priority: 'High', status: 'Not Started', workstream: 'FIN', assignee: 'june@geohan.com', dueDate: addDays(now, 7) },
-    { title: 'Process progress claims for 5 ongoing sites', type: 'Recurring', priority: 'High', status: 'In Progress', workstream: 'FIN', assignee: 'mei@geohan.com', dueDate: endOfMonth(now), recurringCron: '0 9 25 * *' },
-    { title: 'Follow up with LHDN on tax refund status', type: 'Waiting On', priority: 'Medium', status: 'Waiting On', workstream: 'FIN', assignee: 'june@geohan.com', waitingOnWhom: 'LHDN', dueDate: addDays(now, 14) },
-
-    // === ESG & SUSTAINABILITY (ESG) ===
-    { title: 'Finalize sustainability report for annual report', type: 'My Action', priority: 'Critical', status: 'In Progress', workstream: 'ESG', assignee: 'farah@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'Complete carbon footprint assessment for 2025', type: 'My Action', priority: 'High', status: 'In Progress', workstream: 'ESG', assignee: 'farah@geohan.com', dueDate: addDays(now, 30) },
-    { title: 'Review DOSH safety audit findings for KL site', type: 'Review', priority: 'Critical', status: 'Not Started', workstream: 'ESG', assignee: 'farah@geohan.com', dueDate: addDays(now, 5) },
-    { title: 'Submit CIDB green card applications (12 workers)', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'ESG', assignee: 'farah@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Organize World Environment Day activity', type: 'My Action', priority: 'Low', status: 'Not Started', workstream: 'ESG', assignee: 'farah@geohan.com', dueDate: addDays(now, 60) },
-    { title: 'Follow up with SGS on ISO 14001 recertification schedule', type: 'Waiting On', priority: 'Medium', status: 'Waiting On', workstream: 'ESG', assignee: 'farah@geohan.com', waitingOnWhom: 'SGS Malaysia', dueDate: addDays(now, 14) },
-
-    // === OPERATIONS (OPS) ===
-    { title: 'Review site progress report for KVMRT3 Package 1', type: 'Review', priority: 'Critical', status: 'In Progress', workstream: 'OPS', assignee: 'david@geohan.com', dueDate: addDays(now, 2) },
-    { title: 'Resolve crane breakdown at Johor site (2 days downtime)', type: 'My Action', priority: 'Critical', status: 'In Progress', workstream: 'OPS', assignee: 'david@geohan.com', dueDate: addDays(now, 1) },
-    { title: 'Approve equipment purchase order for new hydraulic rig', type: 'Decision', priority: 'High', status: 'Not Started', workstream: 'OPS', assignee: 'ed@gtms.com', dueDate: addDays(now, 5) },
-    { title: 'Plan site mobilization for Penang Second Bridge approach works', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'OPS', assignee: 'david@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Monthly site safety walk (all active sites)', type: 'Recurring', priority: 'High', status: 'Not Started', workstream: 'OPS', assignee: 'david@geohan.com', dueDate: endOfMonth(now), recurringCron: '0 9 1 * *' },
-    { title: 'Review pile load test results for Cyberjaya Phase 3', type: 'Review', priority: 'High', status: 'Waiting On', workstream: 'OPS', assignee: 'david@geohan.com', waitingOnWhom: 'Lab', dueDate: addDays(now, 7) },
-    { title: 'Coordinate with subcontractor on bored pile schedule', type: 'My Action', priority: 'Medium', status: 'In Progress', workstream: 'OPS', assignee: 'david@geohan.com', dueDate: addDays(now, 10) },
-
-    // === LEGAL & SECRETARIAL (LEG) ===
-    { title: 'Review draft shareholders agreement for JV with Penta Nusantara', type: 'Review', priority: 'Critical', status: 'In Progress', workstream: 'LEG', assignee: 'lina@geohan.com', dueDate: addDays(now, 7) },
-    { title: 'Prepare Board meeting agenda and papers for May Board', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'LEG', assignee: 'lina@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'File annual return with SSM', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'LEG', assignee: 'lina@geohan.com', dueDate: addDays(now, 30) },
-    { title: 'Review employment contract templates (updated with new EA 2022 amendments)', type: 'Review', priority: 'Medium', status: 'Not Started', workstream: 'LEG', assignee: 'lina@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'Follow up with lawyers on land acquisition dispute (Rawang site)', type: 'Waiting On', priority: 'High', status: 'Waiting On', workstream: 'LEG', assignee: 'lina@geohan.com', waitingOnWhom: 'Shearn Delamore', dueDate: addDays(now, 7) },
-    { title: 'Prepare AGM notice and proxy forms', type: 'My Action', priority: 'Medium', status: 'Not Started', workstream: 'LEG', assignee: 'lina@geohan.com', dueDate: addDays(now, 45) },
-
-    // === ACUMEN INTEGRATION (ACU) ===
-    { title: 'Review Acumen subsidiary monthly P&L', type: 'Review', priority: 'High', status: 'Not Started', workstream: 'ACU', assignee: 'june@geohan.com', dueDate: addDays(now, 7) },
-    { title: 'Align Acumen HR policies with Geohan group standards', type: 'My Action', priority: 'Medium', status: 'In Progress', workstream: 'ACU', assignee: 'sarah@geohan.com', dueDate: addDays(now, 30) },
-    { title: 'Complete Acumen IT systems integration roadmap', type: 'My Action', priority: 'High', status: 'In Progress', workstream: 'ACU', assignee: 'kevin@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'Meet Acumen MD to discuss synergy opportunities', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'ACU', assignee: 'ed@gtms.com', dueDate: addDays(now, 10) },
-    { title: 'Consolidate Acumen insurance policies under group cover', type: 'My Action', priority: 'Medium', status: 'Not Started', workstream: 'ACU', assignee: 'june@geohan.com', dueDate: addDays(now, 30) },
-
-    // === GPL & LICENSING (GPL) ===
-    { title: 'Renew CIDB Grade G7 license', type: 'My Action', priority: 'Critical', status: 'In Progress', workstream: 'GPL', assignee: 'zul@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Follow up with PKK on Class A contractor registration renewal', type: 'Waiting On', priority: 'High', status: 'Waiting On', workstream: 'GPL', assignee: 'zul@geohan.com', waitingOnWhom: 'PKK', dueDate: addDays(now, 10) },
-    { title: 'Prepare SPAN license application for water infrastructure works', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'GPL', assignee: 'zul@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'Update company profile for prequalification submissions', type: 'My Action', priority: 'Medium', status: 'Not Started', workstream: 'GPL', assignee: 'zul@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Review professional indemnity insurance coverage adequacy', type: 'Review', priority: 'Medium', status: 'Not Started', workstream: 'GPL', assignee: 'june@geohan.com', dueDate: addDays(now, 30) },
-
-    // === ADMIN & GENERAL (ADM) ===
-    { title: 'Review HQ office renovation proposal', type: 'Review', priority: 'Medium', status: 'In Progress', workstream: 'ADM', assignee: 'anis@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Renew company vehicle fleet insurance', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'ADM', assignee: 'anis@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'Organize company dinner (Annual Dinner 2025)', type: 'My Action', priority: 'Medium', status: 'Not Started', workstream: 'ADM', assignee: 'anis@geohan.com', dueDate: addDays(now, 60) },
-    { title: 'Review office supplies procurement contract renewal', type: 'My Action', priority: 'Low', status: 'Not Started', workstream: 'ADM', assignee: 'anis@geohan.com', dueDate: addDays(now, 30) },
-    { title: 'Coordinate building maintenance with landlord (roof leak issue)', type: 'My Action', priority: 'High', status: 'In Progress', workstream: 'ADM', assignee: 'anis@geohan.com', dueDate: addDays(now, 3) },
-
-    // === FUND & ACQUISITIONS (FAN) ===
-    { title: 'Evaluate acquisition target: Borneo Piling Sdn Bhd', type: 'My Action', priority: 'Critical', status: 'In Progress', workstream: 'FAN', assignee: 'grace@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'Review term sheet from CIMB for revolving credit facility', type: 'Review', priority: 'High', status: 'Not Started', workstream: 'FAN', assignee: 'june@geohan.com', dueDate: addDays(now, 7) },
-    { title: 'Follow up with AmBank on project financing drawdown', type: 'Waiting On', priority: 'High', status: 'Waiting On', workstream: 'FAN', assignee: 'grace@geohan.com', waitingOnWhom: 'AmBank', dueDate: addDays(now, 5) },
-    { title: 'Prepare financial model for proposed acquisition', type: 'My Action', priority: 'High', status: 'In Progress', workstream: 'FAN', assignee: 'grace@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Review sukuk issuance feasibility study', type: 'Decision', priority: 'Medium', status: 'Not Started', workstream: 'FAN', assignee: 'june@geohan.com', dueDate: addDays(now, 30) },
-
-    // === TENDER & PROCUREMENT (TEN) ===
-    { title: 'Submit KVMRT3 Package 2 tender by deadline', type: 'My Action', priority: 'Critical', status: 'In Progress', workstream: 'TEN', assignee: 'kumar@geohan.com', dueDate: addDays(now, 5) },
-    { title: 'Prepare tender pricing for LRT3 extension piling works', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'TEN', assignee: 'kumar@geohan.com', dueDate: addDays(now, 14) },
-    { title: 'Review subcontractor quotations for micropiling scope', type: 'Review', priority: 'High', status: 'In Progress', workstream: 'TEN', assignee: 'kumar@geohan.com', dueDate: addDays(now, 7) },
-    { title: 'Follow up with main contractor on variation order (VO12) approval', type: 'Waiting On', priority: 'High', status: 'Waiting On', workstream: 'TEN', assignee: 'kumar@geohan.com', waitingOnWhom: 'IJM Corp', dueDate: addDays(now, 7) },
-    { title: 'Negotiate bulk steel procurement contract for Q3-Q4', type: 'My Action', priority: 'High', status: 'Not Started', workstream: 'TEN', assignee: 'kumar@geohan.com', dueDate: addDays(now, 21) },
-    { title: 'Review procurement policy and update delegation of authority', type: 'Review', priority: 'Medium', status: 'Not Started', workstream: 'TEN', assignee: 'ed@gtms.com', dueDate: addDays(now, 30) },
-
-    // === RECURRING & REGULAR (RT) ===
-    { title: 'Weekly ED catch-up with CFO', type: 'Recurring', priority: 'High', status: 'Not Started', workstream: 'RT', assignee: 'ed@gtms.com', dueDate: nextFriday(now), recurringCron: '0 10 * * 1' },
-    { title: 'Monthly ExCo meeting preparation', type: 'Recurring', priority: 'High', status: 'Not Started', workstream: 'RT', assignee: 'lina@geohan.com', dueDate: addDays(startOfWeek(addMonths(now, 1)), 1), recurringCron: '0 9 1 * *' },
-    { title: 'Quarterly Board meeting preparation', type: 'Recurring', priority: 'Critical', status: 'Not Started', workstream: 'RT', assignee: 'lina@geohan.com', dueDate: addMonths(now, 1), recurringCron: '0 9 1 1,4,7,10 *' },
-    { title: 'Weekly operations review call', type: 'Recurring', priority: 'High', status: 'Not Started', workstream: 'RT', assignee: 'david@geohan.com', dueDate: nextFriday(now), recurringCron: '0 9 * * 3' },
-    { title: 'Monthly project P&L review', type: 'Recurring', priority: 'High', status: 'Not Started', workstream: 'RT', assignee: 'june@geohan.com', dueDate: addDays(now, 15), recurringCron: '0 9 15 * *' },
-    { title: 'Bi-weekly safety committee meeting', type: 'Recurring', priority: 'High', status: 'Not Started', workstream: 'RT', assignee: 'farah@geohan.com', dueDate: addDays(now, 14), recurringCron: '0 14 1,15 * *' },
-    { title: 'Monthly HR dashboard update', type: 'Recurring', priority: 'Medium', status: 'Not Started', workstream: 'RT', assignee: 'sarah@geohan.com', dueDate: endOfMonth(now), recurringCron: '0 9 28 * *' },
-    { title: 'Weekly IT helpdesk ticket review', type: 'Recurring', priority: 'Medium', status: 'Not Started', workstream: 'RT', assignee: 'kevin@geohan.com', dueDate: nextFriday(now), recurringCron: '0 16 * * 5' },
-  ];
-
-  let taskCount = 0;
-  for (const t of tasks) {
-    await prisma.task.create({
+  async function createTaskWithSubtasks(t: TaskDef) {
+    const task = await prisma.task.create({
       data: {
         title: t.title,
-        type: t.type,
-        priority: t.priority,
-        status: t.status,
+        description: t.description || null,
+        type: t.type || 'My Action',
+        priority: t.priority || 'Medium',
+        status: t.status || 'Not Started',
         source: 'Manual',
-        dueDate: t.dueDate,
+        dueDate: t.dueDate || null,
         waitingOnWhom: t.waitingOnWhom || null,
-        recurringCron: t.recurringCron || null,
-        workstreamId: createdWorkstreams[t.workstream],
-        assigneeId: createdUsers[t.assignee],
+        workstreamId: ws[t.workstream],
+        assigneeId: t.assignee ? createdUsers[t.assignee] : null,
         createdById: edId,
       },
     });
-    taskCount++;
+    if (t.subtasks) {
+      for (const sub of t.subtasks) {
+        await prisma.task.create({
+          data: {
+            title: sub.title,
+            type: 'My Action',
+            priority: t.priority || 'Medium',
+            status: sub.status || 'Not Started',
+            source: 'Manual',
+            parentId: task.id,
+            workstreamId: ws[t.workstream],
+            assigneeId: t.assignee ? createdUsers[t.assignee] : null,
+            createdById: edId,
+          },
+        });
+      }
+    }
+    return task;
   }
-  console.log(`Seeded ${taskCount} tasks`);
 
+  // =============================================
+  // MAIN SUBJECT AREA / SCOPE (No HOD - ED tasks)
+  // =============================================
+
+  // Operations / Subcon items
+  const opsTasks: TaskDef[] = [
+    { title: 'Subcon management material take out', workstream: 'OPS', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 14) },
+    { title: 'Cost code and lakefront spun pile', workstream: 'OPS', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 14) },
+    { title: 'Budget vs actual', workstream: 'FIN', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 7) },
+    { title: 'Cost code ordering system', workstream: 'ACU', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 21) },
+    { title: 'Slope monitoring new business development', workstream: 'COM', priority: 'Medium', assignee: 'ed@gtms.com', dueDate: addDays(now, 30) },
+    { title: 'Can we reduce site flood? New competitive advantage', workstream: 'OPS', priority: 'Medium', assignee: 'david@geohan.com', dueDate: addDays(now, 30), type: 'Decision' },
+  ];
+
+  // =============================================
+  // ED MAIN TASK LIST (Items 1-27)
+  // =============================================
+  const edMainTasks: TaskDef[] = [
+    {
+      title: 'NSRF - S1 S2 Confirm if we include in ESG framework',
+      workstream: 'ESG', priority: 'High', assignee: 'farah@geohan.com', dueDate: addDays(now, 14),
+    },
+    {
+      title: 'Write to lawyer of rencana for clearance letter from bank',
+      workstream: 'LEG', priority: 'High', assignee: 'lina@geohan.com', dueDate: addDays(now, 7),
+    },
+    {
+      title: 'Check with Joseph on Contractor code of ethics',
+      workstream: 'LEG', priority: 'Medium', assignee: 'joseph@geohan.com', dueDate: addDays(now, 10),
+    },
+    {
+      title: 'Study listing guidelines and MCCG code, charters, COI',
+      workstream: 'STR', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 21),
+    },
+    {
+      title: 'Gantt chart for each department',
+      workstream: 'ADM', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 30),
+    },
+    {
+      title: 'The Louvre',
+      workstream: 'STR', priority: 'Low', assignee: 'ed@gtms.com', dueDate: addDays(now, 60),
+    },
+    {
+      title: 'Rental agreement between GSB and GESB for land',
+      workstream: 'LEG', priority: 'High', assignee: 'lina@geohan.com', dueDate: addDays(now, 14),
+    },
+    {
+      title: 'CP500 LKS',
+      workstream: 'FIN', priority: 'Medium', assignee: 'june@geohan.com', dueDate: addDays(now, 14),
+    },
+    {
+      title: 'KPI setting, performance incentive, pending KD, framework for remcom',
+      workstream: 'HR', priority: 'High', assignee: 'sarah@geohan.com', dueDate: addDays(now, 14),
+      subtasks: [
+        { title: 'Review the KPI setting paper, and chart it out into policy' },
+      ],
+    },
+    {
+      title: 'Dividend policy',
+      workstream: 'FIN', priority: 'High', assignee: 'june@geohan.com', dueDate: addDays(now, 21),
+      subtasks: [
+        { title: 'Study market for dividend policy benchmarks' },
+      ],
+    },
+    {
+      title: 'Stamp duty exemption application - write up',
+      workstream: 'FIN', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 14),
+      subtasks: [
+        { title: 'Read Yung Cien write up' },
+        { title: 'Clean up Claude write up' },
+      ],
+    },
+    {
+      title: 'Singapore budget and direction setting',
+      workstream: 'GPL', priority: 'High', assignee: 'zul@geohan.com', dueDate: addDays(now, 21),
+    },
+    {
+      title: 'Authority matrix',
+      workstream: 'STR', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 14),
+      subtasks: [
+        { title: 'Remember to add for BOD sign off' },
+      ],
+    },
+    {
+      title: 'Succession planning',
+      workstream: 'HR', priority: 'High', assignee: 'sarah@geohan.com', dueDate: addDays(now, 30),
+    },
+    {
+      title: 'AI usage policy',
+      workstream: 'IT', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 21),
+    },
+    {
+      title: 'Analysing daily site progress',
+      workstream: 'OPS', priority: 'High', assignee: 'david@geohan.com', dueDate: addDays(now, 7),
+    },
+    {
+      title: 'Report management system',
+      workstream: 'IT', priority: 'High', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 14),
+      subtasks: [
+        { title: 'Planning usage' },
+        { title: 'Prepare briefing' },
+      ],
+    },
+    {
+      title: 'Do comparison between meeting per day and meeting allowance per meeting',
+      workstream: 'HR', priority: 'Medium', assignee: 'sarah@geohan.com', dueDate: addDays(now, 14),
+    },
+    {
+      title: 'ABC planning',
+      workstream: 'STR', priority: 'Medium', assignee: 'ed@gtms.com', dueDate: addDays(now, 21),
+    },
+    {
+      title: 'Read sustainability',
+      workstream: 'ESG', priority: 'Low', assignee: 'ed@gtms.com', dueDate: addDays(now, 14),
+    },
+    {
+      title: 'Check Jiva table on remuneration',
+      workstream: 'HR', priority: 'Medium', status: 'Done', assignee: 'jiva@geohan.com', dueDate: addDays(now, -3),
+    },
+    {
+      title: 'Training for directors sign',
+      workstream: 'HR', priority: 'Medium', assignee: 'sarah@geohan.com', dueDate: addDays(now, 21),
+    },
+    {
+      title: 'OCBC form, arrange trip to Singapore',
+      workstream: 'FIN', priority: 'High', assignee: 'june@geohan.com', dueDate: addDays(now, 14),
+    },
+    {
+      title: 'Internal audit checking',
+      workstream: 'FIN', priority: 'High', assignee: 'alvin@geohan.com', dueDate: addDays(now, 14),
+      subtasks: [
+        { title: 'Check Alvin work' },
+        { title: 'Check YC' },
+        { title: 'Check Ken' },
+      ],
+    },
+    {
+      title: 'Viia SPA',
+      workstream: 'LEG', priority: 'High', status: 'Waiting On', assignee: 'lina@geohan.com', dueDate: addDays(now, 21), waitingOnWhom: 'Taksiran pending',
+      subtasks: [
+        { title: 'Now pending taksiran' },
+      ],
+    },
+    {
+      title: 'Read minutes',
+      workstream: 'STR', priority: 'Medium', assignee: 'ed@gtms.com', dueDate: addDays(now, 7),
+      subtasks: [
+        { title: 'RC minutes' },
+        { title: 'NC minutes' },
+        { title: 'ARMC minutes' },
+      ],
+    },
+    {
+      title: 'OCBC form',
+      workstream: 'FIN', priority: 'High', assignee: 'june@geohan.com', dueDate: addDays(now, 14),
+      subtasks: [
+        { title: 'Apply e-giro form' },
+        { title: 'Appoint Jiva, HRPlus and Athirah as maker' },
+        { title: 'June account activate' },
+        { title: 'Appoint Jie Min as authorizer - need to send in new passport' },
+      ],
+    },
+  ];
+
+  // =============================================
+  // WEEKEND TO DO
+  // =============================================
+  const weekendTasks: TaskDef[] = [
+    { title: 'Check unit cost message by Jing Hui on the 23rd Apr', workstream: 'FIN', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 3) },
+    { title: 'Profit takeup projects - go through one by one - Apr margins comparison', workstream: 'FIN', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 3) },
+    { title: 'Project costing recon', workstream: 'FIN', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 3) },
+    { title: 'GESB recon', workstream: 'FIN', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 3) },
+  ];
+
+  // =============================================
+  // PERSONAL / MISC
+  // =============================================
+  const personalTasks: TaskDef[] = [
+    { title: 'RM40k from daddy 29 May', workstream: 'FIN', priority: 'Low', assignee: 'ed@gtms.com', dueDate: addDays(now, 56) },
+    { title: '6pDRXp7OlgD6 code lenovo', workstream: 'IT', priority: 'Low', assignee: 'ed@gtms.com', description: 'Lenovo redemption code' },
+  ];
+
+  // =============================================
+  // ACUMATICA (ACU)
+  // =============================================
+  const acuTasks: TaskDef[] = [
+    { title: 'Design report to track online payment approvals', workstream: 'ACU', priority: 'High', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 21) },
+    { title: 'Review cash flow', workstream: 'ACU', priority: 'High', assignee: 'june@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'Acumatica dashboard', workstream: 'ACU', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 30) },
+    { title: 'Change request form - for claim', workstream: 'ACU', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 21) },
+    { title: 'Share financing', workstream: 'ACU', priority: 'Medium', assignee: 'june@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'Check inventory code mapping', workstream: 'ACU', priority: 'Medium', assignee: 'yc@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'Acumatica payment - check HRDF', workstream: 'ACU', priority: 'Medium', assignee: 'june@geohan.com', dueDate: addDays(now, 7) },
+    { title: 'GESB Inventory code check - Check inventory code again and feedback', workstream: 'ACU', priority: 'Medium', assignee: 'yc@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'Outstanding item list', workstream: 'ACU', priority: 'High', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 7) },
+    { title: "YC's request class, item code", workstream: 'ACU', priority: 'Medium', assignee: 'yc@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'PRF form', workstream: 'ACU', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 21) },
+    { title: 'Petty cash form', workstream: 'ACU', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 21) },
+    { title: 'CPS - estimated work done by type of work, debit note', workstream: 'ACU', priority: 'High', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'Training for approvers', workstream: 'ACU', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 30) },
+  ];
+
+  // =============================================
+  // GPL Singapore (GPL)
+  // =============================================
+  const gplTasks: TaskDef[] = [
+    { title: 'GPL Tax for personnel - do we need to pay tax in Singapore if tax residency in Malaysia', workstream: 'GPL', priority: 'High', assignee: 'zul@geohan.com', dueDate: addDays(now, 14), type: 'Decision' },
+    { title: 'GPL salary', workstream: 'GPL', priority: 'High', assignee: 'zul@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'GPL recruiter', workstream: 'GPL', priority: 'Medium', assignee: 'zul@geohan.com', dueDate: addDays(now, 21) },
+    { title: 'GPL outsource HR', workstream: 'GPL', priority: 'Medium', assignee: 'zul@geohan.com', dueDate: addDays(now, 21) },
+    { title: 'GPL forecast', workstream: 'GPL', priority: 'High', assignee: 'zul@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'GPL tender and project database', workstream: 'GPL', priority: 'Medium', assignee: 'zul@geohan.com', dueDate: addDays(now, 30) },
+    { title: 'GPL handover notes', workstream: 'GPL', priority: 'High', assignee: 'zul@geohan.com', dueDate: addDays(now, 7) },
+  ];
+
+  // =============================================
+  // ADMIN & SYSTEM (ADM)
+  // =============================================
+  const admTasks: TaskDef[] = [
+    { title: 'System training for engineer', workstream: 'ADM', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 30) },
+    { title: 'System training for site supervisor', workstream: 'ADM', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 30) },
+    { title: 'System training for safety', workstream: 'ADM', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 30) },
+    { title: 'R&D', workstream: 'ADM', priority: 'Low', assignee: 'ed@gtms.com', dueDate: addDays(now, 60) },
+    { title: 'Centralised CLQ - CLQ policy', workstream: 'ADM', priority: 'Medium', assignee: 'anis@geohan.com', dueDate: addDays(now, 30) },
+    { title: 'If QA fails: Reporting - Flag out system process to rectify and train - Process improvement plan', workstream: 'ADM', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 21), description: 'Question is which part to get PD buy in' },
+    {
+      title: 'ESG - Assurance 2027 - Form up fundamental',
+      workstream: 'ESG', priority: 'High', assignee: 'farah@geohan.com', dueDate: addDays(now, 30),
+      description: 'Risk register EAIR Finance, Governance, Safety - Board training to confirm if can do Fri 23rd Jan 4-5pm',
+    },
+    { title: 'SOP to gather data, adopt assurance, what is the process to adopt this standard', workstream: 'ESG', priority: 'Medium', assignee: 'farah@geohan.com', dueDate: addDays(now, 30) },
+    { title: 'Jan - ESG SOP drafting, ESG data collection parallel run and trials for 2026 data - IA - Present ERM to board, elect IA - MCCG training', workstream: 'ESG', priority: 'High', assignee: 'farah@geohan.com', dueDate: addDays(now, -60), status: 'Done' },
+    { title: 'Feb - ESG Data collecting for past data for 2025 - Finalise IA plan', workstream: 'ESG', priority: 'High', assignee: 'farah@geohan.com', dueDate: addDays(now, -30), status: 'Done' },
+    { title: 'Mar - ESG Results 2025 tabulation - IA fieldwork', workstream: 'ESG', priority: 'High', assignee: 'farah@geohan.com', dueDate: addDays(now, -7) },
+    { title: 'Apr - ESG Sustainability statement', workstream: 'ESG', priority: 'High', assignee: 'farah@geohan.com', dueDate: addDays(now, 27) },
+    { title: 'May - IA Report', workstream: 'ESG', priority: 'High', assignee: 'alvin@geohan.com', dueDate: addDays(now, 57) },
+    { title: 'June - Interview ESG Assurance provider', workstream: 'ESG', priority: 'Medium', assignee: 'farah@geohan.com', dueDate: addDays(now, 87) },
+    { title: 'Policy, framework, SOP - MCCG (Jan)', workstream: 'ESG', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, -60), status: 'Done' },
+    { title: 'Alia - projection on resources (Workdone, manpower, material) - Reporting standardisation', workstream: 'OPS', priority: 'High', assignee: 'alia@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'Admin budget', workstream: 'ADM', priority: 'Medium', assignee: 'anis@geohan.com', dueDate: addDays(now, 21) },
+    { title: 'Collection risk, business tender slow, underground risk, material pricing risk', workstream: 'STR', priority: 'High', assignee: 'ed@gtms.com', dueDate: addDays(now, 14), type: 'Review' },
+    { title: 'ISO, operations inventory and safety asset, safety, tender questionnaire', workstream: 'ADM', priority: 'Medium', assignee: 'anis@geohan.com', dueDate: addDays(now, 30) },
+    { title: '50%/Establish monthly meeting and reporting', workstream: 'ADM', priority: 'Medium', assignee: 'ed@gtms.com', dueDate: addDays(now, 14) },
+    { title: 'Circulate memo to company on info flow to project admin if required', workstream: 'ADM', priority: 'Medium', assignee: 'anis@geohan.com', dueDate: addDays(now, 7) },
+    { title: 'Review insurance', workstream: 'ADM', priority: 'Medium', assignee: 'june@geohan.com', dueDate: addDays(now, 21), type: 'Review' },
+    { title: 'Revert on intercompany car rental', workstream: 'ADM', priority: 'Low', assignee: 'anis@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'GMSB CIDB', workstream: 'ADM', priority: 'Medium', assignee: 'zul@geohan.com', dueDate: addDays(now, 21) },
+    { title: 'Roof contractor', workstream: 'ADM', priority: 'High', assignee: 'anis@geohan.com', dueDate: addDays(now, 7) },
+  ];
+
+  // =============================================
+  // FINANCIAL ANALYSIS & SIMULATION (FAN)
+  // =============================================
+  const fanTasks: TaskDef[] = [
+    { title: 'KL East/Flora to breakdown the loss components - what is the root cause. Compare to budget and analyse top three cost components', workstream: 'FAN', priority: 'Critical', assignee: 'june@geohan.com', dueDate: addDays(now, 7) },
+    { title: 'BP work order 100mil in hand, currently boss forecast 20mil loss. Analyse this 100mil BP work and the margin', workstream: 'FAN', priority: 'Critical', assignee: 'june@geohan.com', dueDate: addDays(now, 7) },
+    { title: 'BG scheme scenario analysis. Sell at 10th year, 15th year. Compare the revenue, cost and tax impact', workstream: 'FAN', priority: 'High', assignee: 'grace@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'Analyse transport', workstream: 'FAN', priority: 'Medium', assignee: 'june@geohan.com', dueDate: addDays(now, 21) },
+  ];
+
+  // =============================================
+  // HR (HR)
+  // =============================================
+  const hrTasks: TaskDef[] = [
+    { title: 'Slides for weekly meeting SMM budget vs actual', workstream: 'HR', priority: 'High', assignee: 'sarah@geohan.com', dueDate: addDays(now, 3), type: 'Recurring' },
+    { title: 'Assist in performance assessment', workstream: 'HR', priority: 'High', assignee: 'sarah@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'Remuneration framework, balance scorecard, discretionary reasons to be documented (KPI meeting)', workstream: 'HR', priority: 'High', assignee: 'sarah@geohan.com', dueDate: addDays(now, 21) },
+    { title: 'Succession planning', workstream: 'HR', priority: 'High', assignee: 'sarah@geohan.com', dueDate: addDays(now, 30) },
+    { title: 'Handbook', workstream: 'HR', priority: 'Medium', assignee: 'sarah@geohan.com', dueDate: addDays(now, 45) },
+    { title: 'Jobs and responsibility, Roadmap for each role', workstream: 'HR', priority: 'Medium', assignee: 'sarah@geohan.com', dueDate: addDays(now, 30) },
+  ];
+
+  // =============================================
+  // FINANCE (FIN)
+  // =============================================
+  const finTasks: TaskDef[] = [
+    { title: 'Check project costing profit - high side', workstream: 'FIN', priority: 'High', assignee: 'june@geohan.com', dueDate: addDays(now, 7) },
+    { title: 'Check month to month profit recognition. If cut off June, what is the results in 2023, 2022', workstream: 'FIN', priority: 'High', assignee: 'june@geohan.com', dueDate: addDays(now, 14) },
+    { title: 'Follow up - Jeremy Loh subcontract backcharge', workstream: 'FIN', priority: 'High', assignee: 'jeremy@geohan.com', dueDate: addDays(now, 7), type: 'Waiting On', waitingOnWhom: 'Jeremy Loh' },
+    {
+      title: 'Check wages 2nd Half 90%/Check foreign subcon - brief June, Mr Oh and Jeremy Loh, how to treat moving forward',
+      workstream: 'FIN', priority: 'Critical', assignee: 'june@geohan.com', dueDate: addDays(now, 7),
+      subtasks: [
+        { title: 'Check foreign pass' },
+        { title: 'Steps for future: June to check ID of subcon (company or individual)' },
+        { title: 'If foreigner, get passport or PR, permit page/e-pass and CIDB card photos' },
+        { title: 'If foreigner has valid PR and valid CIDB, continue as per normal subcontractor certification and payment' },
+        { title: 'If CIDB is expired, request them to renew, otherwise all certification and payment is rejected' },
+        { title: 'If foreigner is not PR, award and pay through appointment. Check if proxy is Malaysian and have CIDB' },
+        { title: 'Prepare contract agreement signed by both parties' },
+      ],
+    },
+    {
+      title: 'Finding list',
+      workstream: 'FIN', priority: 'Medium', assignee: 'alvin@geohan.com', dueDate: addDays(now, 14),
+      subtasks: [
+        { title: 'Scrap iron' },
+        { title: 'Mobile app' },
+      ],
+    },
+    { title: 'Alvin on previous years cash', workstream: 'FIN', priority: 'Medium', assignee: 'alvin@geohan.com', dueDate: addDays(now, 14) },
+  ];
+
+  // =============================================
+  // IT (IT)
+  // =============================================
+  const itTasks: TaskDef[] = [
+    // Q1
+    { title: 'AI Proof of Concept with Contract Department', workstream: 'IT', priority: 'High', assignee: 'kevin@geohan.com', dueDate: addDays(now, 30), description: 'Q1 target' },
+    { title: 'Moodle Launch (LMS)', workstream: 'IT', priority: 'High', assignee: 'kevin@geohan.com', dueDate: addDays(now, 30), description: 'Q1 target' },
+    { title: 'Posting IT Bulletin every month', workstream: 'IT', priority: 'Low', assignee: 'james@geohan.com', dueDate: endOfMonth(now), type: 'Recurring' },
+    { title: 'Site CCTV monitor access', workstream: 'IT', priority: 'Medium', assignee: 'james@geohan.com', dueDate: addDays(now, 30) },
+    // Q2
+    { title: 'Jodoo Subscription upgrade to Enterprise', workstream: 'IT', priority: 'Medium', assignee: 'kevin@geohan.com', dueDate: addDays(now, 60), description: 'Q2 target' },
+    { title: 'Getting Cybersecurity Training / Certified Train-the-trainer', workstream: 'IT', priority: 'High', assignee: 'kevin@geohan.com', dueDate: addDays(now, 60), description: 'Q2 target' },
+    { title: 'Server Consolidation Project', workstream: 'IT', priority: 'High', assignee: 'james@geohan.com', dueDate: addDays(now, 60), description: 'Q2 target' },
+    // Q3
+    { title: 'Firewall replacement upgrade project (for HQ & Warehouse)', workstream: 'IT', priority: 'High', assignee: 'james@geohan.com', dueDate: addDays(now, 120), description: 'Q3 target' },
+    { title: 'Data Backup & Recovery Enhancement - 2 way backup (HQ & Warehouse)', workstream: 'IT', priority: 'High', assignee: 'james@geohan.com', dueDate: addDays(now, 120), description: 'Q3 target' },
+    // Q4
+    { title: 'Implement AI Adoption for every department', workstream: 'IT', priority: 'High', assignee: 'kevin@geohan.com', dueDate: addDays(now, 180), description: 'Q4 target' },
+    // App development
+    { title: 'OCR for Statement Reconciliation (DO, supplier invoice, bank statement, supplier statement) for Finance Department', workstream: 'IT', priority: 'High', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 30), description: 'Q1 App' },
+    { title: 'Acumatica Claim Feature for Contract Department', workstream: 'IT', priority: 'High', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 30), description: 'Q1 App' },
+    { title: 'Launch welding app for HR and Drilling Centre team', workstream: 'IT', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 30), description: 'Q1 App' },
+    { title: 'ESG Data collection on CSI Solution portal', workstream: 'IT', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 30), description: 'Q1 App' },
+    // Q2 Apps
+    { title: 'Field Log in Acumatica for Operations Department', workstream: 'IT', priority: 'High', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 60), description: 'Q2 App' },
+    { title: 'GDN App Development for Warehouse and Operations Department', workstream: 'IT', priority: 'High', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 60), description: 'Q2 App' },
+    // Q3 Apps
+    { title: 'GDN App Launch for Warehouse and Operations Department', workstream: 'IT', priority: 'High', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 120), description: 'Q3 App' },
+    // Q4 Apps
+    { title: 'Redevelop BPMS App', workstream: 'IT', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 180), description: 'Q4 App' },
+    // Other IT
+    { title: 'OCR petty cash', workstream: 'IT', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 45) },
+    { title: 'PRF forms', workstream: 'IT', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 45) },
+    { title: 'Dashboard for senior management', workstream: 'IT', priority: 'High', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 30) },
+    { title: 'Dashboard for site manager / site PIC', workstream: 'IT', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 45) },
+    { title: 'WhatsApp API with Acumatica, implement reports out to WhatsApp group', workstream: 'IT', priority: 'Medium', assignee: 'jiemin@geohan.com', dueDate: addDays(now, 60) },
+  ];
+
+  // =============================================
+  // TENDER & CONTRACT (TEN)
+  // =============================================
+  const tenTasks: TaskDef[] = [
+    {
+      title: 'Tender process documentation and workflow',
+      workstream: 'TEN', priority: 'High', assignee: 'kumar@geohan.com', dueDate: addDays(now, 21),
+      description: 'Full tender document set (PDF). BQ summary excel. Cost estimation (Cost-BP Conf/CAD). Addendums/revisions.',
+      subtasks: [
+        { title: 'Generate BQ Summary excel file from tender documents' },
+        { title: 'Work on cost estimation (Cost-BP Conf and CAD options)' },
+        { title: 'Handle addendums and revisions to BQ Summary' },
+        { title: 'Generate formal CAD Bills of Quantities for submission' },
+      ],
+    },
+    {
+      title: 'Post-Contract (Award) - progress claim excel file setup',
+      workstream: 'TEN', priority: 'High', assignee: 'kumar@geohan.com', dueDate: addDays(now, 14),
+      description: 'Description from full BQ. Qty and price follow awarded BQ summary. Set formulas.',
+    },
+    {
+      title: 'Contract Review process',
+      workstream: 'TEN', priority: 'High', assignee: 'lina@geohan.com', dueDate: addDays(now, 21),
+      description: 'Letter of Award T&C review. Standard forms PAM 2006/2018. Addendum/Amendments to Conditions of Contract. Specifications review.',
+      subtasks: [
+        { title: 'Review Letter of Award terms and conditions' },
+        { title: 'Review standard forms of contract (PAM 2006/2018)' },
+        { title: 'Review Addendum/Amendments to Conditions of Contract' },
+        { title: 'Go through specifications' },
+      ],
+    },
+  ];
+
+  // =============================================
+  // CREATE ALL TASKS
+  // =============================================
+  const allTasks = [
+    ...opsTasks, ...edMainTasks, ...weekendTasks, ...personalTasks,
+    ...acuTasks, ...gplTasks, ...admTasks, ...fanTasks, ...hrTasks,
+    ...finTasks, ...itTasks, ...tenTasks,
+  ];
+
+  let taskCount = 0;
+  let subtaskCount = 0;
+  for (const t of allTasks) {
+    const task = await createTaskWithSubtasks(t);
+    taskCount++;
+    subtaskCount += t.subtasks?.length || 0;
+  }
+
+  console.log(`Seeded ${taskCount} tasks + ${subtaskCount} subtasks`);
   console.log('Seeding complete!');
   console.log(`\nLogin: ed@gtms.com / ${PASSWORD}`);
 }
