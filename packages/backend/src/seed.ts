@@ -6,10 +6,6 @@ const prisma = new PrismaClient();
 
 const PASSWORD = 'Admin1234';
 
-export async function runSeed() {
-  return main();
-}
-
 async function main() {
   console.log('Seeding GTMS database...');
   const passwordHash = await bcrypt.hash(PASSWORD, 12);
