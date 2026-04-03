@@ -23,7 +23,7 @@ import { startWorkers, setupRecurringJobs } from './services/workers';
 
 const app = express();
 
-// Trust proxy (Railway uses a reverse proxy)
+// Trust proxy (Render uses a reverse proxy)
 app.set('trust proxy', 1);
 
 // Global middleware
