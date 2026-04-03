@@ -37,4 +37,4 @@ WORKDIR /app/packages/backend
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx src/index.ts"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && npx tsx src/index.ts"]
