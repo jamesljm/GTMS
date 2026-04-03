@@ -327,7 +327,7 @@ export async function processChat(
 
   // Call Claude with tools
   let response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6-20250514',
+    model: 'claude-sonnet-4-5-20250929',
     max_tokens: 2048,
     system: systemPrompt,
     tools,
@@ -357,7 +357,7 @@ export async function processChat(
     messages.push({ role: 'user', content: toolResults });
 
     response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 2048,
       system: systemPrompt,
       tools,
