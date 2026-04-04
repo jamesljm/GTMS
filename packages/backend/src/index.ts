@@ -61,6 +61,17 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Temporary seed endpoint (remove after seeding)
+app.post('/api/v1/seed', async (req, res) => {
+  try {
+    const { runSeed } = await import('./seed-runner');
+    await runSeed();
+    res.json({ ok: true, message: 'Database seeded successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // API routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/tasks', authenticate, taskRoutes);
