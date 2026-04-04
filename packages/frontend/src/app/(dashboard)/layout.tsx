@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
+import { EmbeddedChatPanel } from "@/components/embedded-chat-panel";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -90,6 +91,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               );
             })}
           </nav>
+
+          {/* AI Chat Panel */}
+          <div className="px-3 pb-2 hidden lg:block">
+            <EmbeddedChatPanel />
+          </div>
 
           {/* User info */}
           <div className="p-4 border-t">

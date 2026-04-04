@@ -16,7 +16,7 @@ import { useUpdateTask } from "@/hooks/use-tasks";
 import { KanbanColumn } from "./kanban-column";
 import { KanbanCard } from "./kanban-card";
 
-const STATUS_COLUMNS = ["Not Started", "In Progress", "Waiting On", "Blocked"];
+const STATUS_COLUMNS = ["Not Started", "In Progress", "Waiting On", "Blocked", "Done"];
 
 interface KanbanViewProps {
   tasks: any[];

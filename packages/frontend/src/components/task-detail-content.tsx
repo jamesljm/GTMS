@@ -1,18 +1,20 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTask, useUpdateTask, useCreateTask } from "@/hooks/use-tasks";
+import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
 import { useUploadAttachment, useDeleteAttachment, getAttachmentUrl } from "@/hooks/use-attachments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PriorityBadge } from "@/components/priority-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { WorkstreamBadge } from "@/components/workstream-badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Trash2, Upload, Plus, CheckCircle2, Circle,
-  FileText, X, Download,
+  FileText, X, Download, Pencil, Check,
 } from "lucide-react";
 import { format } from "date-fns";
 import { api } from "@/lib/api";
@@ -34,10 +36,54 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
   const deleteAttachment = useDeleteAttachment();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { data: workstreams } = useWorkstreams();
+  const { data: users } = useUsers();
 
   const [noteContent, setNoteContent] = useState("");
   const [subtaskTitle, setSubtaskTitle] = useState("");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
+
+  // Reset edit mode when task changes
+  useEffect(() => {
+    setEditing(false);
+  }, [taskId]);
+
+  const startEditing = () => {
+    if (!task) return;
+    setEditForm({
+      title: task.title || "",
+      description: task.description || "",
+      type: task.type || "My Action",
+      priority: task.priority || "Medium",
+      workstreamId: task.workstreamId || "",
+      assigneeId: task.assigneeId || "",
+      dueDate: task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : "",
+      waitingOnWhom: task.waitingOnWhom || "",
+    });
+    setEditing(true);
+  };
+
+  const saveEdits = () => {
+    if (!task) return;
+    const updates: Record<string, any> = { id: task.id };
+    if (editForm.title !== task.title) updates.title = editForm.title;
+    if (editForm.description !== (task.description || "")) updates.description = editForm.description || null;
+    if (editForm.type !== task.type) updates.type = editForm.type;
+    if (editForm.priority !== task.priority) updates.priority = editForm.priority;
+    if (editForm.workstreamId !== (task.workstreamId || "")) updates.workstreamId = editForm.workstreamId || null;
+    if (editForm.assigneeId !== (task.assigneeId || "")) updates.assigneeId = editForm.assigneeId || null;
+    const formDate = editForm.dueDate || null;
+    const taskDate = task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : null;
+    if (formDate !== taskDate) updates.dueDate = formDate || null;
+    if (editForm.waitingOnWhom !== (task.waitingOnWhom || "")) updates.waitingOnWhom = editForm.waitingOnWhom || null;
+
+    if (Object.keys(updates).length > 1) {
+      updateTask.mutate(updates);
+    }
+    setEditing(false);
+  };
 
   const addNote = useMutation({
     mutationFn: (data: { taskId: string; content: string; type: string }) =>
@@ -101,48 +147,169 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
       <div className={cn("flex flex-col", inline && "h-full overflow-y-auto")}>
         {/* Header */}
         <div className="p-6 pb-4">
-          {inline && (
-            <button onClick={onClose} className="absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100">
-              <X className="h-4 w-4" />
-            </button>
-          )}
-          <h2 className="text-lg font-semibold pr-8">{task.title}</h2>
-          <div className="flex flex-wrap items-center gap-2 mt-2">
-            <PriorityBadge priority={task.priority} />
-            <StatusBadge status={task.status} />
-            {task.workstream && (
-              <WorkstreamBadge code={task.workstream.code} name={task.workstream.name} color={task.workstream.color} />
-            )}
-            <span className="text-xs text-muted-foreground">{task.type}</span>
+          <div className="flex items-start justify-between">
+            <div className="flex-1 pr-2">
+              {editing ? (
+                <Input
+                  value={editForm.title}
+                  onChange={(e) => setEditForm(p => ({ ...p, title: e.target.value }))}
+                  className="text-lg font-semibold h-auto py-1"
+                />
+              ) : (
+                <h2 className="text-lg font-semibold">{task.title}</h2>
+              )}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {editing ? (
+                <>
+                  <Button size="sm" variant="default" className="h-7 text-xs" onClick={saveEdits} disabled={updateTask.isPending}>
+                    <Check className="h-3 w-3 mr-1" /> Save
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditing(false)}>
+                    <X className="h-3 w-3 mr-1" /> Cancel
+                  </Button>
+                </>
+              ) : (
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={startEditing}>
+                  <Pencil className="h-3 w-3 mr-1" /> Edit
+                </Button>
+              )}
+              {inline && (
+                <button onClick={onClose} className="rounded-sm opacity-70 hover:opacity-100 ml-1">
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
+          {!editing && (
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <PriorityBadge priority={task.priority} />
+              <StatusBadge status={task.status} />
+              {task.workstream && (
+                <WorkstreamBadge code={task.workstream.code} name={task.workstream.name} color={task.workstream.color} />
+              )}
+              <span className="text-xs text-muted-foreground">{task.type}</span>
+            </div>
+          )}
         </div>
 
         <div className="px-6 space-y-5 pb-6">
-          {task.description && (
-            <p className="text-sm text-muted-foreground">{task.description}</p>
-          )}
-
-          {/* Metadata */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-muted-foreground text-xs">Assignee</span>
-              <p className="font-medium">{task.assignee?.name || "Unassigned"}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground text-xs">Due Date</span>
-              <p className="font-medium">{task.dueDate ? format(new Date(task.dueDate), "dd MMM yyyy") : "No due date"}</p>
-            </div>
-            {task.waitingOnWhom && (
-              <div>
-                <span className="text-muted-foreground text-xs">Waiting On</span>
-                <p className="font-medium">{task.waitingOnWhom}</p>
+          {/* Editable fields */}
+          {editing ? (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Description</label>
+                <Textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm(p => ({ ...p, description: e.target.value }))}
+                  placeholder="Description..."
+                  rows={3}
+                  className="text-sm"
+                />
               </div>
-            )}
-            <div>
-              <span className="text-muted-foreground text-xs">Created by</span>
-              <p className="font-medium">{task.createdBy?.name}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Type</label>
+                  <Select value={editForm.type} onValueChange={v => setEditForm(p => ({ ...p, type: v }))}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="My Action">My Action</SelectItem>
+                      <SelectItem value="Waiting On">Waiting On</SelectItem>
+                      <SelectItem value="Decision">Decision</SelectItem>
+                      <SelectItem value="Review">Review</SelectItem>
+                      <SelectItem value="Recurring">Recurring</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Priority</label>
+                  <Select value={editForm.priority} onValueChange={v => setEditForm(p => ({ ...p, priority: v }))}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Critical">Critical</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="Low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Workstream</label>
+                  <Select value={editForm.workstreamId || "none"} onValueChange={v => setEditForm(p => ({ ...p, workstreamId: v === "none" ? "" : v }))}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No workstream</SelectItem>
+                      {workstreams?.map((ws: any) => (
+                        <SelectItem key={ws.id} value={ws.id}>{ws.code} - {ws.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Assignee</label>
+                  <Select value={editForm.assigneeId || "none"} onValueChange={v => setEditForm(p => ({ ...p, assigneeId: v === "none" ? "" : v }))}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Unassigned</SelectItem>
+                      {users?.map((u: any) => (
+                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Due Date</label>
+                  <Input
+                    type="date"
+                    value={editForm.dueDate}
+                    onChange={(e) => setEditForm(p => ({ ...p, dueDate: e.target.value }))}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Waiting On</label>
+                  <Input
+                    value={editForm.waitingOnWhom}
+                    onChange={(e) => setEditForm(p => ({ ...p, waitingOnWhom: e.target.value }))}
+                    placeholder="Who is this waiting on?"
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <>
+              {task.description && (
+                <p className="text-sm text-muted-foreground">{task.description}</p>
+              )}
+
+              {/* Metadata */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground text-xs">Assignee</span>
+                  <p className="font-medium">{task.assignee?.name || "Unassigned"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-xs">Due Date</span>
+                  <p className="font-medium">{task.dueDate ? format(new Date(task.dueDate), "dd MMM yyyy") : "No due date"}</p>
+                </div>
+                {task.waitingOnWhom && (
+                  <div>
+                    <span className="text-muted-foreground text-xs">Waiting On</span>
+                    <p className="font-medium">{task.waitingOnWhom}</p>
+                  </div>
+                )}
+                <div>
+                  <span className="text-muted-foreground text-xs">Created by</span>
+                  <p className="font-medium">{task.createdBy?.name}</p>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Status buttons */}
           <div>

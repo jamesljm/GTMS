@@ -19,7 +19,6 @@ import { ListView } from "@/components/views/list-view";
 import { KanbanView } from "@/components/views/kanban-view";
 import { GanttView } from "@/components/views/gantt-view";
 import { CalendarView } from "@/components/views/calendar-view";
-import { EmbeddedChatPanel } from "@/components/embedded-chat-panel";
 import { cn } from "@/lib/utils";
 
 type ViewType = "list" | "kanban" | "gantt" | "calendar";
@@ -188,7 +187,6 @@ function TasksContent() {
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">Tasks</h1>
         <div className="flex items-center gap-2">
           <Tabs value={activeView} onValueChange={handleViewChange}>
             <TabsList className="h-9">
@@ -206,6 +204,10 @@ function TasksContent() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-1" /> New Task
+          </Button>
 
           {/* Density toggle */}
           {activeView === "list" && (
@@ -239,15 +241,9 @@ function TasksContent() {
           >
             <PanelRight className="h-3.5 w-3.5" />
           </Button>
-
-          <Button size="sm" onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4 mr-1" /> New Task
-          </Button>
         </div>
+        <h1 className="text-2xl font-bold">Tasks</h1>
       </div>
-
-      {/* Embedded AI Chat */}
-      <EmbeddedChatPanel />
 
       {/* Filter bar */}
       <FilterBar
