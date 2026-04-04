@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuthStore } from "@/store/auth-store";
 import {
   LayoutDashboard, ListTodo, MessageSquare, Users, Layers,
-  Settings, LogOut, Menu, X,
+  Settings, LogOut, Menu, X, Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
@@ -18,6 +18,7 @@ const navigation = [
   { name: "Tasks", href: "/tasks", icon: ListTodo },
   { name: "AI Chat", href: "/chat", icon: MessageSquare },
   { name: "Team", href: "/team", icon: Users },
+  { name: "Departments", href: "/departments", icon: Building2 },
   { name: "Workstreams", href: "/workstreams", icon: Layers },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -105,7 +106,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{user.role} - {user.department}</p>
+                <p className="text-xs text-muted-foreground truncate">{user.role} - {user.department?.name || "No Dept"}</p>
               </div>
             </div>
             <Button variant="outline" size="sm" className="w-full" onClick={logout}>

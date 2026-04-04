@@ -58,7 +58,7 @@ export function useDeleteWorkstream() {
 export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { email: string; name: string; role?: string; position?: string; department?: string }) =>
+    mutationFn: (data: { email: string; name: string; role?: string; position?: string; departmentId?: string }) =>
       api.post("/users", data).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["users"] });
@@ -70,7 +70,7 @@ export function useCreateUser() {
 export function useUpdateUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name?: string; email?: string; role?: string; position?: string; department?: string }) =>
+    mutationFn: ({ id, ...data }: { id: string; name?: string; email?: string; role?: string; position?: string; departmentId?: string }) =>
       api.patch(`/users/${id}`, data).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["users"] });

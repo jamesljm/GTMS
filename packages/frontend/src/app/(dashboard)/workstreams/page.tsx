@@ -2,6 +2,8 @@
 
 import { useTasksByWorkstream } from "@/hooks/use-tasks";
 import { useCreateWorkstream, useUpdateWorkstream, useDeleteWorkstream } from "@/hooks/use-workstreams";
+import { useAuthStore } from "@/store/auth-store";
+import { canManageWorkstreams } from "@/lib/permissions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, X, Check } from "lucide-react";
 
 export default function WorkstreamsPage() {
+  const { user: currentUser } = useAuthStore();
+  const isED = currentUser ? canManageWorkstreams(currentUser) : false;
   const { data: workstreams, isLoading } = useTasksByWorkstream();
   const createWorkstream = useCreateWorkstream();
   const updateWorkstream = useUpdateWorkstream();
@@ -80,9 +84,11 @@ export default function WorkstreamsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Workstreams</h1>
-        <Button size="sm" onClick={() => setShowAddWs(!showAddWs)}>
-          <Plus className="h-4 w-4 mr-1" /> Add Workstream
-        </Button>
+        {isED && (
+          <Button size="sm" onClick={() => setShowAddWs(!showAddWs)}>
+            <Plus className="h-4 w-4 mr-1" /> Add Workstream
+          </Button>
+        )}
       </div>
 
       {/* Add workstream form */}
@@ -137,12 +143,16 @@ export default function WorkstreamsPage() {
                     </button>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">{ws.tasks?.length || 0} active</span>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(ws)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDeleteWs(ws.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {isED && (
+                        <>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(ws)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDeleteWs(ws.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </>
                 )}

@@ -15,14 +15,41 @@ export async function runSeed() {
     await prisma.reminderLog.deleteMany();
     await prisma.task.deleteMany();
     await prisma.workstream.deleteMany();
+    // Clear department headId before deleting users (FK constraint)
+    await prisma.department.updateMany({ data: { headId: null } });
     await prisma.user.deleteMany();
+    await prisma.department.deleteMany();
     await prisma.appSetting.deleteMany();
     console.log('All data cleared.');
 
     const passwordHash = await bcrypt.hash(PASSWORD, 12);
     const now = new Date();
 
-    // Users
+    // --- DEPARTMENTS ---
+    const deptDefs = [
+      { name: 'Board', code: 'BRD', color: '#1e293b', sortOrder: 0 },
+      { name: 'Finance', code: 'FIN', color: '#ef4444', sortOrder: 1 },
+      { name: 'IT', code: 'IT', color: '#10b981', sortOrder: 2 },
+      { name: 'HR', code: 'HR', color: '#f97316', sortOrder: 3 },
+      { name: 'Operations', code: 'OPS', color: '#8b5cf6', sortOrder: 4 },
+      { name: 'ESG', code: 'ESG', color: '#22c55e', sortOrder: 5 },
+      { name: 'Investor Relations', code: 'IR', color: '#3b82f6', sortOrder: 6 },
+      { name: 'Legal', code: 'LEG', color: '#64748b', sortOrder: 7 },
+      { name: 'Commercial', code: 'COM', color: '#f59e0b', sortOrder: 8 },
+      { name: 'Admin', code: 'ADM', color: '#a855f7', sortOrder: 9 },
+      { name: 'Fund & Acquisitions', code: 'FNA', color: '#06b6d4', sortOrder: 10 },
+      { name: 'GPL', code: 'GPL', color: '#14b8a6', sortOrder: 11 },
+      { name: 'Tender', code: 'TEN', color: '#d97706', sortOrder: 12 },
+    ];
+
+    const dept: Record<string, string> = {};
+    for (const d of deptDefs) {
+      const created = await prisma.department.create({ data: d });
+      dept[d.name] = created.id;
+    }
+    console.log(`Seeded ${deptDefs.length} departments`);
+
+    // --- USERS ---
     const userDefs = [
       { email: 'ed@gtms.com', name: "Dato' Sri AR", role: 'ED', position: 'Executive Director', department: 'Board' },
       { email: 'june@geohan.com', name: 'June Tan', role: 'HOD', position: 'CFO', department: 'Finance' },
@@ -55,10 +82,38 @@ export async function runSeed() {
 
     const u: Record<string, string> = {};
     for (const ud of userDefs) {
-      const created = await prisma.user.create({ data: { ...ud, passwordHash } });
+      const created = await prisma.user.create({
+        data: {
+          email: ud.email,
+          name: ud.name,
+          role: ud.role,
+          position: ud.position,
+          departmentId: dept[ud.department] || null,
+          passwordHash,
+        },
+      });
       u[ud.email] = created.id;
     }
     console.log(`Seeded ${userDefs.length} users`);
+
+    // --- SET HODs AS DEPARTMENT HEADS ---
+    const hodMappings: Record<string, string> = {
+      'Finance': 'june@geohan.com',
+      'IT': 'kevin@geohan.com',
+      'HR': 'sarah@geohan.com',
+      'Operations': 'david@geohan.com',
+      'ESG': 'farah@geohan.com',
+      'Investor Relations': 'rajan@geohan.com',
+      'Legal': 'lina@geohan.com',
+      'Commercial': 'ahmad@geohan.com',
+    };
+    for (const [deptName, hodEmail] of Object.entries(hodMappings)) {
+      await prisma.department.update({
+        where: { id: dept[deptName] },
+        data: { headId: u[hodEmail] },
+      });
+    }
+    console.log('Set HODs as department heads');
 
     // Workstreams
     const wsDefs = [
@@ -135,7 +190,7 @@ export async function runSeed() {
     await ct('Slope monitoring new business development', 'COM', { p: 'Medium', a: 'ed@gtms.com', due: addDays(now, 30) }); count++;
     await ct('Can we reduce site flood? New competitive advantage', 'OPS', { p: 'Medium', a: 'david@geohan.com', due: addDays(now, 30), type: 'Decision' }); count++;
 
-    // === ED Main Tasks (1-27) ===
+    // === ED Main Tasks ===
     await ct('NSRF - S1 S2 Confirm if we include in ESG framework', 'ESG', { p: 'High', a: 'farah@geohan.com', due: addDays(now, 14) }); count++;
     await ct('Write to lawyer of rencana for clearance letter from bank', 'LEG', { p: 'High', a: 'lina@geohan.com', due: addDays(now, 7) }); count++;
     await ct('Check with Joseph on Contractor code of ethics', 'LEG', { p: 'Medium', a: 'joseph@geohan.com', due: addDays(now, 10) }); count++;

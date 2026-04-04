@@ -72,3 +72,22 @@ export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 export type AddNoteInput = z.infer<typeof addNoteSchema>;
 export type ChatMessageInput = z.infer<typeof chatMessageSchema>;
 export type TaskFilterInput = z.infer<typeof taskFilterSchema>;
+
+export const createDepartmentSchema = z.object({
+  name: z.string().min(1).max(100),
+  code: z.string().min(1).max(10),
+  description: z.string().optional(),
+  color: z.string().optional(),
+  headId: z.string().nullable().optional(),
+});
+
+export const updateDepartmentSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  code: z.string().min(1).max(10).optional(),
+  description: z.string().nullable().optional(),
+  color: z.string().optional(),
+  headId: z.string().nullable().optional(),
+});
+
+export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;
+export type UpdateDepartmentInput = z.infer<typeof updateDepartmentSchema>;

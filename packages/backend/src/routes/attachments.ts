@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { prisma } from '../prisma';
 import { AppError } from '../middleware/error';
+import { getVisibleTaskFilter } from '../middleware/rbac';
 
 const router = Router();
 
@@ -24,7 +25,8 @@ router.post('/', upload.single('file'), asyncHandler(async (req: Request, res: R
   const { taskId } = req.body;
   if (!taskId) throw new AppError(400, 'taskId is required');
 
-  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  const rbacFilter = await getVisibleTaskFilter(req.user!);
+  const task = await prisma.task.findFirst({ where: { AND: [{ id: taskId }, rbacFilter] } });
   if (!task) throw new AppError(404, 'Task not found');
 
   const attachment = await prisma.attachment.create({

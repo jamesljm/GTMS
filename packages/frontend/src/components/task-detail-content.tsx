@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useTask, useUpdateTask, useCreateTask } from "@/hooks/use-tasks";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
+import { useAuthStore } from "@/store/auth-store";
+import { canEditAllFields, canDeleteTask } from "@/lib/permissions";
 import { useUploadAttachment, useDeleteAttachment, getAttachmentUrl } from "@/hooks/use-attachments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,8 +38,20 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
   const deleteAttachment = useDeleteAttachment();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user: currentUser } = useAuthStore();
   const { data: workstreams } = useWorkstreams();
   const { data: users } = useUsers();
+
+  const canEditAll = currentUser ? canEditAllFields(currentUser) : false;
+
+  // Filter assignee list by role
+  const filteredUsers = users?.filter((u: any) => {
+    if (!currentUser) return true;
+    if (currentUser.role === 'ED') return true;
+    if (currentUser.role === 'STAFF') return u.id === currentUser.id;
+    if (currentUser.departmentId) return u.departmentId === currentUser.departmentId;
+    return u.id === currentUser.id;
+  }) || [];
 
   const [noteContent, setNoteContent] = useState("");
   const [subtaskTitle, setSubtaskTitle] = useState("");
@@ -169,11 +183,11 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
                     <X className="h-3 w-3 mr-1" /> Cancel
                   </Button>
                 </>
-              ) : (
+              ) : canEditAll ? (
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={startEditing}>
                   <Pencil className="h-3 w-3 mr-1" /> Edit
                 </Button>
-              )}
+              ) : null}
               {inline && (
                 <button onClick={onClose} className="rounded-sm opacity-70 hover:opacity-100 ml-1">
                   <X className="h-4 w-4" />
@@ -253,7 +267,7 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
                     <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Unassigned</SelectItem>
-                      {users?.map((u: any) => (
+                      {filteredUsers.map((u: any) => (
                         <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                       ))}
                     </SelectContent>

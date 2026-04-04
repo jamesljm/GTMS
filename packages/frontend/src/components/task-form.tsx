@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCreateTask } from "@/hooks/use-tasks";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
+import { useAuthStore } from "@/store/auth-store";
 
 interface TaskFormDialogProps {
   open: boolean;
@@ -23,9 +24,20 @@ export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
   const [assigneeId, setAssigneeId] = useState("");
   const [dueDate, setDueDate] = useState("");
 
+  const { user: currentUser } = useAuthStore();
   const { data: workstreams } = useWorkstreams();
   const { data: users } = useUsers();
   const createTask = useCreateTask();
+
+  // Filter assignee list by role
+  const filteredUsers = users?.filter((u: any) => {
+    if (!currentUser) return true;
+    if (currentUser.role === 'ED') return true;
+    if (currentUser.role === 'STAFF') return u.id === currentUser.id;
+    // HOD/MANAGER: same department only
+    if (currentUser.departmentId) return u.departmentId === currentUser.departmentId;
+    return u.id === currentUser.id;
+  }) || [];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +130,7 @@ export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
               <Select value={assigneeId} onValueChange={setAssigneeId}>
                 <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                 <SelectContent>
-                  {users?.map((u: any) => (
+                  {filteredUsers.map((u: any) => (
                     <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                   ))}
                 </SelectContent>

@@ -7,6 +7,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        String   @unique
+  description String?
+  color       String   @default("#6366f1")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  headId String? @unique
+  head   User?   @relation("DepartmentHead", fields: [headId], references: [id])
+
+  members User[] @relation("DepartmentMembers")
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -14,12 +30,15 @@ model User {
   passwordHash String
   role         String   @default("STAFF") // ED, HOD, MANAGER, STAFF
   position     String?
-  department   String?
   phone        String?
   isActive     Boolean  @default(true)
   microsoftId  String?  @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  departmentId String?
+  dept         Department? @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  headOf       Department? @relation("DepartmentHead")
 
   assignedTasks Task[]         @relation("AssignedTasks")
   createdTasks  Task[]         @relation("CreatedTasks")
@@ -28,6 +47,8 @@ model User {
   chatSessions  ChatSession[]
   chatMessages  ChatMessage[]
   reminderLogs  ReminderLog[]
+
+  @@index([departmentId])
 }
 
 model Workstream {

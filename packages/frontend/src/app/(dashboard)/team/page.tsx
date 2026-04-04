@@ -3,6 +3,9 @@
 import { useTeamSummary } from "@/hooks/use-dashboard";
 import { useTasksByAssignee } from "@/hooks/use-tasks";
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from "@/hooks/use-workstreams";
+import { useDepartments } from "@/hooks/use-departments";
+import { useAuthStore } from "@/store/auth-store";
+import { canManageUsers } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,9 +28,12 @@ function getAvatarColor(name: string) {
 }
 
 export default function TeamPage() {
+  const { user: currentUser } = useAuthStore();
+  const isManager = currentUser ? canManageUsers(currentUser) : false;
   const { data: teamSummary } = useTeamSummary();
   const { data: tasksByAssignee } = useTasksByAssignee();
   const { data: allUsers } = useUsers();
+  const { data: departments } = useDepartments();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
@@ -37,7 +43,7 @@ export default function TeamPage() {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [showAddUser, setShowAddUser] = useState(false);
-  const [newUser, setNewUser] = useState({ name: "", email: "", role: "STAFF", position: "", department: "" });
+  const [newUser, setNewUser] = useState({ name: "", email: "", role: "STAFF", position: "", departmentId: "" });
 
   const handleSelectTask = useCallback((taskId: string) => {
     setSelectedTaskId(taskId);
@@ -49,7 +55,7 @@ export default function TeamPage() {
 
   const startEdit = (member: any) => {
     setEditingUser(member.id);
-    setEditForm({ name: member.name, email: member.email, role: member.role, position: member.position, department: member.department });
+    setEditForm({ name: member.name, email: member.email, role: member.role, position: member.position, departmentId: member.departmentId || "" });
   };
 
   const saveEdit = async () => {
@@ -61,7 +67,7 @@ export default function TeamPage() {
   const handleAddUser = async () => {
     if (!newUser.name || !newUser.email) return;
     await createUser.mutateAsync(newUser);
-    setNewUser({ name: "", email: "", role: "STAFF", position: "", department: "" });
+    setNewUser({ name: "", email: "", role: "STAFF", position: "", departmentId: "" });
     setShowAddUser(false);
   };
 
@@ -77,9 +83,11 @@ export default function TeamPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Team View</h1>
-        <Button size="sm" onClick={() => setShowAddUser(!showAddUser)}>
-          <UserPlus className="h-4 w-4 mr-1" /> Add Member
-        </Button>
+        {isManager && (
+          <Button size="sm" onClick={() => setShowAddUser(!showAddUser)}>
+            <UserPlus className="h-4 w-4 mr-1" /> Add Member
+          </Button>
+        )}
       </div>
 
       {/* Add user form */}
@@ -99,7 +107,15 @@ export default function TeamPage() {
                 </SelectContent>
               </Select>
               <Input placeholder="Position" value={newUser.position} onChange={e => setNewUser(p => ({ ...p, position: e.target.value }))} />
-              <Input placeholder="Department" value={newUser.department} onChange={e => setNewUser(p => ({ ...p, department: e.target.value }))} />
+              <Select value={newUser.departmentId || "none"} onValueChange={v => setNewUser(p => ({ ...p, departmentId: v === "none" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Department..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Department</SelectItem>
+                  {departments?.map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="flex gap-2">
                 <Button size="sm" onClick={handleAddUser} disabled={createUser.isPending}>
                   <Check className="h-4 w-4 mr-1" /> Save
@@ -127,7 +143,15 @@ export default function TeamPage() {
                   <Input placeholder="Name" value={editForm.name} onChange={e => setEditForm((p: any) => ({ ...p, name: e.target.value }))} />
                   <Input placeholder="Email" value={editForm.email} onChange={e => setEditForm((p: any) => ({ ...p, email: e.target.value }))} />
                   <Input placeholder="Position" value={editForm.position} onChange={e => setEditForm((p: any) => ({ ...p, position: e.target.value }))} />
-                  <Input placeholder="Department" value={editForm.department} onChange={e => setEditForm((p: any) => ({ ...p, department: e.target.value }))} />
+                  <Select value={editForm.departmentId || "none"} onValueChange={v => setEditForm((p: any) => ({ ...p, departmentId: v === "none" ? "" : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Department..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Department</SelectItem>
+                      {departments?.map((d: any) => (
+                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Select value={editForm.role} onValueChange={v => setEditForm((p: any) => ({ ...p, role: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -161,20 +185,24 @@ export default function TeamPage() {
                       onClick={() => setExpandedUser(expandedUser === member.id ? null : member.id)}
                     >
                       <p className="font-medium truncate">{member.name}</p>
-                      <p className="text-xs text-muted-foreground">{member.position} · {member.department}</p>
+                      <p className="text-xs text-muted-foreground">{member.position} · {member.department || member.dept?.name || "No Dept"}</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); startEdit(member); }}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                      {isManager && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); startEdit(member); }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <Button size="icon" variant="ghost" className="h-7 w-7" asChild>
                         <a href={`mailto:${member.email}`} onClick={e => e.stopPropagation()} title={member.email}>
                           <Mail className="h-3.5 w-3.5" />
                         </a>
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteUser(member.id); }}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {isManager && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteUser(member.id); }}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                   {/* Email display */}

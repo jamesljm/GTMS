@@ -60,7 +60,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <span className="text-muted-foreground">Department</span>
-              <p className="font-medium">{user?.department}</p>
+              <p className="font-medium">{user?.department?.name || "No Department"}</p>
             </div>
           </div>
         </CardContent>

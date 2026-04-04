@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
 import { AppError } from '../middleware/error';
+import { canManageUsers } from '../middleware/rbac';
 import bcrypt from 'bcryptjs';
 
 const router = Router();
@@ -21,7 +22,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
       email: true,
       role: true,
       position: true,
-      department: true,
+      departmentId: true,
+      dept: { select: { id: true, name: true, code: true } },
     },
     orderBy: { name: 'asc' },
   });
@@ -39,7 +41,8 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
       email: true,
       role: true,
       position: true,
-      department: true,
+      departmentId: true,
+      dept: { select: { id: true, name: true, code: true } },
       assignedTasks: {
         where: { status: { notIn: ['Done', 'Cancelled'] } },
         include: { workstream: true },
@@ -54,7 +57,11 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // POST / - create user
 router.post('/', asyncHandler(async (req: Request, res: Response) => {
-  const { email, name, role, position, department, password } = req.body;
+  if (!canManageUsers(req.user!)) {
+    throw new AppError(403, 'Insufficient permissions to manage users');
+  }
+
+  const { email, name, role, position, departmentId, password } = req.body;
   if (!email || !name) {
     res.status(400).json({ error: 'email and name are required' });
     return;
@@ -66,6 +73,12 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
+  // HOD forces departmentId to own dept
+  let finalDepartmentId = departmentId || null;
+  if (req.user!.role === 'HOD') {
+    finalDepartmentId = req.user!.departmentId;
+  }
+
   const passwordHash = await bcrypt.hash(password || 'Admin1234', 12);
   const user = await prisma.user.create({
     data: {
@@ -73,10 +86,18 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
       name,
       role: role || 'STAFF',
       position: position || '',
-      department: department || '',
+      departmentId: finalDepartmentId,
       passwordHash,
     },
-    select: { id: true, name: true, email: true, role: true, position: true, department: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      position: true,
+      departmentId: true,
+      dept: { select: { id: true, name: true, code: true } },
+    },
   });
 
   res.status(201).json(user);
@@ -84,7 +105,27 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 
 // PATCH /:id - update user
 router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
-  const { name, email, role, position, department } = req.body;
+  if (!canManageUsers(req.user!)) {
+    throw new AppError(403, 'Insufficient permissions to manage users');
+  }
+
+  const targetUser = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!targetUser) throw new AppError(404, 'User not found');
+
+  // HOD can only edit own dept members
+  if (req.user!.role === 'HOD') {
+    if (targetUser.departmentId !== req.user!.departmentId) {
+      throw new AppError(403, 'HOD can only edit members of their own department');
+    }
+  }
+
+  const { name, email, role, position, departmentId } = req.body;
+
+  // HOD cannot change roles
+  if (req.user!.role === 'HOD' && role !== undefined) {
+    throw new AppError(403, 'HOD cannot change user roles');
+  }
+
   const user = await prisma.user.update({
     where: { id: req.params.id },
     data: {
@@ -92,9 +133,17 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
       ...(email !== undefined && { email }),
       ...(role !== undefined && { role }),
       ...(position !== undefined && { position }),
-      ...(department !== undefined && { department }),
+      ...(departmentId !== undefined && { departmentId }),
     },
-    select: { id: true, name: true, email: true, role: true, position: true, department: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      position: true,
+      departmentId: true,
+      dept: { select: { id: true, name: true, code: true } },
+    },
   });
 
   res.json(user);
@@ -102,6 +151,19 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE /:id - deactivate user (soft delete)
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+  if (!canManageUsers(req.user!)) {
+    throw new AppError(403, 'Insufficient permissions to manage users');
+  }
+
+  // HOD can only delete own dept members
+  if (req.user!.role === 'HOD') {
+    const targetUser = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!targetUser) throw new AppError(404, 'User not found');
+    if (targetUser.departmentId !== req.user!.departmentId) {
+      throw new AppError(403, 'HOD can only deactivate members of their own department');
+    }
+  }
+
   await prisma.user.update({
     where: { id: req.params.id },
     data: { isActive: false },

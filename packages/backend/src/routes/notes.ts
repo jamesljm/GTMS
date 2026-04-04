@@ -3,6 +3,7 @@ import { prisma } from '../prisma';
 import { validate } from '../middleware/validate';
 import { addNoteSchema } from 'shared';
 import { AppError } from '../middleware/error';
+import { getVisibleTaskFilter } from '../middleware/rbac';
 
 const router = Router();
 
@@ -16,7 +17,8 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
 router.post('/', validate(addNoteSchema), asyncHandler(async (req: Request, res: Response) => {
   const { taskId, content, type } = req.body;
 
-  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  const rbacFilter = await getVisibleTaskFilter(req.user!);
+  const task = await prisma.task.findFirst({ where: { AND: [{ id: taskId }, rbacFilter] } });
   if (!task) throw new AppError(404, 'Task not found');
 
   const note = await prisma.note.create({

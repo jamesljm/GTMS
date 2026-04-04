@@ -17,6 +17,7 @@ import workstreamRoutes from './routes/workstreams';
 import userRoutes from './routes/users';
 import chatRoutes from './routes/chat';
 import attachmentRoutes from './routes/attachments';
+import departmentRoutes from './routes/departments';
 import webhookRoutes from './routes/webhooks';
 
 // Workers
@@ -69,6 +70,7 @@ app.use('/api/v1/workstreams', authenticate, workstreamRoutes);
 app.use('/api/v1/users', authenticate, userRoutes);
 app.use('/api/v1/chat', authenticate, chatRoutes);
 app.use('/api/v1/attachments', authenticate, attachmentRoutes);
+app.use('/api/v1/departments', authenticate, departmentRoutes);
 app.use('/api/v1/webhooks', webhookRoutes); // No auth for webhooks
 
 // Error handler

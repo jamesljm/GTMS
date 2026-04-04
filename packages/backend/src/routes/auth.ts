@@ -16,8 +16,8 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
   };
 }
 
-function generateTokens(user: { id: string; email: string; name: string; role: string }) {
-  const payload = { id: user.id, email: user.email, name: user.name, role: user.role };
+function generateTokens(user: { id: string; email: string; name: string; role: string; departmentId: string | null }) {
+  const payload = { id: user.id, email: user.email, name: user.name, role: user.role, departmentId: user.departmentId };
   const accessToken = jwt.sign(payload, config.JWT_SECRET, { expiresIn: config.JWT_EXPIRES_IN as any });
   const refreshToken = jwt.sign({ id: user.id }, config.JWT_REFRESH_SECRET, { expiresIn: config.JWT_REFRESH_EXPIRES_IN as any });
   return { accessToken, refreshToken };
@@ -27,7 +27,7 @@ function generateTokens(user: { id: string; email: string; name: string; role: s
 router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email }, include: { dept: { select: { id: true, name: true, code: true } } } });
   if (!user || !user.isActive) throw new AppError(401, 'Invalid credentials');
 
   const valid = await bcrypt.compare(password, user.passwordHash);
@@ -43,7 +43,8 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, r
       name: user.name,
       role: user.role,
       position: user.position,
-      department: user.department,
+      departmentId: user.departmentId,
+      department: user.dept,
     },
   });
 }));
@@ -68,7 +69,7 @@ router.post('/microsoft', asyncHandler(async (req: Request, res: Response) => {
   const email = decoded.email || decoded.preferred_username;
   const name = decoded.name || email.split('@')[0];
 
-  let user = await prisma.user.findUnique({ where: { email } });
+  let user = await prisma.user.findUnique({ where: { email }, include: { dept: { select: { id: true, name: true, code: true } } } });
   if (!user) {
     // Auto-create user from SSO
     const passwordHash = await bcrypt.hash(Math.random().toString(36), 12);
@@ -80,6 +81,7 @@ router.post('/microsoft', asyncHandler(async (req: Request, res: Response) => {
         role: 'STAFF',
         microsoftId: decoded.oid || decoded.sub,
       },
+      include: { dept: { select: { id: true, name: true, code: true } } },
     });
   } else if (!user.microsoftId && decoded.oid) {
     await prisma.user.update({
@@ -100,7 +102,8 @@ router.post('/microsoft', asyncHandler(async (req: Request, res: Response) => {
       name: user.name,
       role: user.role,
       position: user.position,
-      department: user.department,
+      departmentId: user.departmentId,
+      department: (user as any).dept,
     },
   });
 }));
@@ -124,7 +127,7 @@ router.post('/refresh', asyncHandler(async (req: Request, res: Response) => {
 
 // GET /me
 router.get('/me', authenticate, asyncHandler(async (req: Request, res: Response) => {
-  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+  const user = await prisma.user.findUnique({ where: { id: req.user!.id }, include: { dept: { select: { id: true, name: true, code: true } } } });
   if (!user) throw new AppError(404, 'User not found');
 
   res.json({
@@ -133,7 +136,8 @@ router.get('/me', authenticate, asyncHandler(async (req: Request, res: Response)
     name: user.name,
     role: user.role,
     position: user.position,
-    department: user.department,
+    departmentId: user.departmentId,
+    department: user.dept,
   });
 }));
 

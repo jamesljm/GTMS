@@ -1,5 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
+import { authorize } from '../middleware/auth';
+import { getVisibleTaskFilter } from '../middleware/rbac';
 
 const router = Router();
 
@@ -23,10 +25,13 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // GET /:id - workstream detail with tasks
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const rbacFilter = await getVisibleTaskFilter(req.user!);
+
   const workstream = await prisma.workstream.findUnique({
     where: { id: req.params.id },
     include: {
       tasks: {
+        where: rbacFilter,
         include: {
           assignee: { select: { id: true, name: true, email: true } },
         },
@@ -43,8 +48,8 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   res.json(workstream);
 }));
 
-// POST / - create workstream
-router.post('/', asyncHandler(async (req: Request, res: Response) => {
+// POST / - create workstream (ED only)
+router.post('/', authorize('ED'), asyncHandler(async (req: Request, res: Response) => {
   const { code, name, description, color, sortOrder } = req.body;
   if (!code || !name) {
     res.status(400).json({ error: 'code and name are required' });
@@ -65,8 +70,8 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   res.status(201).json(workstream);
 }));
 
-// PATCH /:id - update workstream
-router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
+// PATCH /:id - update workstream (ED only)
+router.patch('/:id', authorize('ED'), asyncHandler(async (req: Request, res: Response) => {
   const { code, name, description, color, sortOrder } = req.body;
   const workstream = await prisma.workstream.update({
     where: { id: req.params.id },
@@ -82,8 +87,8 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
   res.json(workstream);
 }));
 
-// DELETE /:id - delete workstream (only if no tasks)
-router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+// DELETE /:id - delete workstream (ED only, only if no tasks)
+router.delete('/:id', authorize('ED'), asyncHandler(async (req: Request, res: Response) => {
   const count = await prisma.task.count({ where: { workstreamId: req.params.id } });
   if (count > 0) {
     res.status(400).json({ error: `Cannot delete workstream with ${count} tasks. Reassign tasks first.` });

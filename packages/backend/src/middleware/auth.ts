@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string;
   name: string;
   role: UserRole;
+  departmentId: string | null;
 }
 
 declare global {
@@ -35,13 +36,13 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   }
 }
 
-export function authorize(...roles: UserRole[]) {
+export function authorize(...roles: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({ error: 'Not authenticated' });
       return;
     }
-    if (roles.length > 0 && !roles.includes(req.user.role as UserRole)) {
+    if (roles.length > 0 && !roles.includes(req.user.role as string)) {
       res.status(403).json({ error: 'Insufficient permissions' });
       return;
     }

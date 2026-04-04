@@ -260,7 +260,7 @@ async function buildSystemPrompt(): Promise<string> {
 
   const now = new Date();
   const wsInfo = workstreams.map(ws => `${ws.code}: ${ws.name}`).join('\n');
-  const teamInfo = users.map(u => `${u.name} (${u.email}) - ${u.role}, ${u.position || ''}, ${u.department || ''}`).join('\n');
+  const teamInfo = users.map(u => `${u.name} (${u.email}) - ${u.role}, ${u.position || ''}, dept:${u.departmentId || 'none'}`).join('\n');
 
   return `You are the AI assistant for GTMS (Geohan Task Management System), built for the Executive Director of Geohan Corporation, a Malaysian listed geotechnical contractor (~750 staff, 35+ sites).
 
