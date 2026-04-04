@@ -1,19 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/auth-store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import { downloadFile } from "@/lib/download";
 import { toast } from "sonner";
+import { Download, Database, Copy, Check } from "lucide-react";
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
+  const isED = user?.role === "ED";
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportingJson, setExportingJson] = useState(false);
+  const [dbUrl, setDbUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (isED) {
+      api.get("/admin/db-url").then(r => setDbUrl(r.data.url)).catch(() => {});
+    }
+  }, [isED]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +46,39 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleExportCsv = async () => {
+    setExportingCsv(true);
+    try {
+      const date = new Date().toISOString().split("T")[0];
+      await downloadFile("/export/tasks?format=csv", `gtms-tasks-${date}.csv`);
+      toast.success("Tasks exported successfully");
+    } catch (err: any) {
+      toast.error("Failed to export tasks");
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
+  const handleExportJson = async () => {
+    setExportingJson(true);
+    try {
+      const date = new Date().toISOString().split("T")[0];
+      await downloadFile("/export/database", `gtms-export-${date}.json`);
+      toast.success("Database exported successfully");
+    } catch (err: any) {
+      toast.error("Failed to export database");
+    } finally {
+      setExportingJson(false);
+    }
+  };
+
+  const handleCopyDbUrl = () => {
+    navigator.clipboard.writeText(dbUrl);
+    setCopied(true);
+    toast.success("Database URL copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -90,6 +136,52 @@ export default function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Export - visible to all, scoped by RBAC */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Download className="h-5 w-5" /> Export</CardTitle>
+          <CardDescription>Download your data</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button variant="outline" onClick={handleExportCsv} disabled={exportingCsv}>
+              <Download className="h-4 w-4 mr-2" />
+              {exportingCsv ? "Exporting..." : "Export Tasks (CSV)"}
+            </Button>
+            {isED && (
+              <Button variant="outline" onClick={handleExportJson} disabled={exportingJson}>
+                <Download className="h-4 w-4 mr-2" />
+                {exportingJson ? "Exporting..." : "Export Database (JSON)"}
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            CSV export includes only tasks you have access to. {isED ? "JSON export includes all database tables." : ""}
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Database Access - ED only */}
+      {isED && dbUrl && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Database className="h-5 w-5" /> Database Access</CardTitle>
+            <CardDescription>Direct PostgreSQL connection</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Input readOnly value={dbUrl} className="font-mono text-xs" />
+              <Button size="icon" variant="outline" onClick={handleCopyDbUrl}>
+                {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Use a PostgreSQL client (pgAdmin, DBeaver, psql) to connect directly to the database.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

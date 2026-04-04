@@ -16,7 +16,7 @@ interface UIState {
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
-      viewDensity: "default",
+      viewDensity: "compact",
       setViewDensity: (viewDensity) => set({ viewDensity }),
       detailPanelMode: "overlay",
       setDetailPanelMode: (detailPanelMode) => set({ detailPanelMode }),

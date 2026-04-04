@@ -19,6 +19,8 @@ import chatRoutes from './routes/chat';
 import attachmentRoutes from './routes/attachments';
 import departmentRoutes from './routes/departments';
 import webhookRoutes from './routes/webhooks';
+import assignmentRoutes from './routes/assignments';
+import exportRoutes from './routes/export';
 
 // Workers
 import { startWorkers, setupRecurringJobs } from './services/workers';
@@ -72,7 +74,18 @@ app.use('/api/v1/users', authenticate, userRoutes);
 app.use('/api/v1/chat', authenticate, chatRoutes);
 app.use('/api/v1/attachments', authenticate, attachmentRoutes);
 app.use('/api/v1/departments', authenticate, departmentRoutes);
+app.use('/api/v1/users/:userId/assignments', authenticate, assignmentRoutes);
+app.use('/api/v1/export', authenticate, exportRoutes);
 app.use('/api/v1/webhooks', webhookRoutes); // No auth for webhooks
+
+// Admin endpoints
+app.get('/api/v1/admin/db-url', authenticate, (req, res) => {
+  if (req.user?.role !== 'ED') {
+    res.status(403).json({ error: 'Only ED can access database URL' });
+    return;
+  }
+  res.json({ url: process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL || '' });
+});
 
 // Error handler
 app.use(errorHandler);

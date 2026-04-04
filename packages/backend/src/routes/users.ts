@@ -24,6 +24,10 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
       position: true,
       departmentId: true,
       dept: { select: { id: true, name: true, code: true } },
+      assignments: {
+        include: { department: { select: { id: true, name: true, code: true, color: true } } },
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      },
     },
     orderBy: { name: 'asc' },
   });
@@ -43,6 +47,10 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
       position: true,
       departmentId: true,
       dept: { select: { id: true, name: true, code: true } },
+      assignments: {
+        include: { department: { select: { id: true, name: true, code: true, color: true } } },
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      },
       assignedTasks: {
         where: { status: { notIn: ['Done', 'Cancelled'] } },
         include: { workstream: true },

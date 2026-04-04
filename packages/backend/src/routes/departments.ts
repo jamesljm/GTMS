@@ -36,6 +36,10 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
         select: { id: true, name: true, email: true, role: true, position: true },
         orderBy: { name: 'asc' },
       },
+      assignments: {
+        include: { user: { select: { id: true, name: true, email: true, isActive: true } } },
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      },
     },
   });
   if (!dept) throw new AppError(404, 'Department not found');

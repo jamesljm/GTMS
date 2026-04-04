@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, X, Check, Users, Crown } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Check, Users, Crown, Star } from "lucide-react";
 
 export default function DepartmentsPage() {
   const { user } = useAuthStore();
@@ -216,13 +216,60 @@ function DepartmentMembers({ deptId }: { deptId: string }) {
 
   if (!dept) return null;
 
+  // Build a map from userId -> assignment for this department
+  const assignmentMap: Record<string, any> = {};
+  if (dept.assignments) {
+    for (const a of dept.assignments) {
+      if (a.user?.isActive !== false) {
+        assignmentMap[a.userId] = a;
+      }
+    }
+  }
+
+  // Combine members (from departmentId FK) with additional members from assignments
+  const memberIds = new Set<string>();
+  const allMembers: any[] = [];
+
+  // Primary members (have departmentId = this dept)
+  if (dept.members) {
+    for (const m of dept.members) {
+      memberIds.add(m.id);
+      const assignment = assignmentMap[m.id];
+      allMembers.push({
+        ...m,
+        assignmentRole: assignment?.role || m.role,
+        assignmentPosition: assignment?.position || m.position,
+        isPrimary: assignment?.isPrimary ?? true,
+      });
+    }
+  }
+
+  // Additional members via assignments (not primary dept members)
+  if (dept.assignments) {
+    for (const a of dept.assignments) {
+      if (!memberIds.has(a.userId) && a.user?.isActive !== false) {
+        memberIds.add(a.userId);
+        allMembers.push({
+          id: a.userId,
+          name: a.user?.name || "Unknown",
+          email: a.user?.email || "",
+          role: a.role,
+          position: a.position,
+          assignmentRole: a.role,
+          assignmentPosition: a.position,
+          isPrimary: false,
+        });
+      }
+    }
+  }
+
   return (
     <Card>
       <CardContent className="p-4">
-        <h3 className="font-medium mb-3">{dept.name} - Members ({dept.members?.length || 0})</h3>
-        {dept.members?.length > 0 ? (
+        <h3 className="font-medium mb-3">{dept.name} - Members ({allMembers.length})</h3>
+        {allMembers.length > 0 ? (
           <div className="space-y-2">
-            {dept.members.map((m: any) => (
+            {allMembers.map((m: any) => (
               <div key={m.id} className="flex items-center gap-3 py-1.5 px-2 rounded hover:bg-accent/50">
                 <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium shrink-0">
                   {m.name.charAt(0)}
@@ -231,8 +278,16 @@ function DepartmentMembers({ deptId }: { deptId: string }) {
                   <p className="text-sm font-medium truncate">
                     {m.name}
                     {dept.headId === m.id && <span className="ml-2 text-xs text-amber-600 font-normal">(HOD)</span>}
+                    {m.isPrimary && (
+                      <span className="ml-1.5 inline-flex items-center">
+                        <Star className="h-3 w-3 text-primary fill-primary" />
+                      </span>
+                    )}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">{m.email} - {m.role} · {m.position || "No position"}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {m.email} - {m.assignmentRole} · {m.assignmentPosition || "No position"}
+                    {!m.isPrimary && <span className="ml-1 text-xs text-blue-500">(additional)</span>}
+                  </p>
                 </div>
               </div>
             ))}
@@ -244,4 +299,3 @@ function DepartmentMembers({ deptId }: { deptId: string }) {
     </Card>
   );
 }
-

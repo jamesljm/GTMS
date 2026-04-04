@@ -8,6 +8,7 @@ export async function runSeed() {
   const prisma = new PrismaClient();
   try {
     console.log('Clearing all existing data...');
+    await prisma.userAssignment.deleteMany();
     await prisma.attachment.deleteMany();
     await prisma.note.deleteMany();
     await prisma.chatMessage.deleteMany();
@@ -114,6 +115,45 @@ export async function runSeed() {
       });
     }
     console.log('Set HODs as department heads');
+
+    // --- USER ASSIGNMENTS ---
+    // Create assignments matching each user's primary role/department
+    for (const ud of userDefs) {
+      if (!dept[ud.department]) continue;
+      await prisma.userAssignment.create({
+        data: {
+          userId: u[ud.email],
+          departmentId: dept[ud.department],
+          role: ud.role,
+          position: ud.position,
+          isPrimary: true,
+        },
+      });
+    }
+
+    // ED gets additional assignments across key departments
+    const edExtraAssignments = [
+      { department: 'Finance', role: 'ED', position: 'Oversight' },
+      { department: 'Operations', role: 'ED', position: 'Oversight' },
+      { department: 'IT', role: 'ED', position: 'Oversight' },
+      { department: 'Legal', role: 'ED', position: 'Oversight' },
+      { department: 'ESG', role: 'ED', position: 'Oversight' },
+    ];
+    for (const ea of edExtraAssignments) {
+      if (!dept[ea.department]) continue;
+      await prisma.userAssignment.upsert({
+        where: { userId_departmentId: { userId: u['ed@gtms.com'], departmentId: dept[ea.department] } },
+        create: {
+          userId: u['ed@gtms.com'],
+          departmentId: dept[ea.department],
+          role: ea.role,
+          position: ea.position,
+          isPrimary: false,
+        },
+        update: {},
+      });
+    }
+    console.log('Seeded user assignments');
 
     // Workstreams
     const wsDefs = [

@@ -20,7 +20,8 @@ model Department {
   headId String? @unique
   head   User?   @relation("DepartmentHead", fields: [headId], references: [id])
 
-  members User[] @relation("DepartmentMembers")
+  members     User[]           @relation("DepartmentMembers")
+  assignments UserAssignment[]
 }
 
 model User {
@@ -47,6 +48,7 @@ model User {
   chatSessions  ChatSession[]
   chatMessages  ChatMessage[]
   reminderLogs  ReminderLog[]
+  assignments   UserAssignment[]
 
   @@index([departmentId])
 }
@@ -192,4 +194,21 @@ model AppSetting {
   id    String @id @default(uuid())
   key   String @unique
   value String
+}
+
+model UserAssignment {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  role         String
+  position     String?
+  isPrimary    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([userId, departmentId])
+  @@index([userId])
+  @@index([departmentId])
 }

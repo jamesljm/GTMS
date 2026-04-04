@@ -4,6 +4,7 @@ import { useTeamSummary } from "@/hooks/use-dashboard";
 import { useTasksByAssignee } from "@/hooks/use-tasks";
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from "@/hooks/use-workstreams";
 import { useDepartments } from "@/hooks/use-departments";
+import { useCreateAssignment, useDeleteAssignment } from "@/hooks/use-assignments";
 import { useAuthStore } from "@/store/auth-store";
 import { canManageUsers } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +15,7 @@ import { TaskCard } from "@/components/task-card";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
 import { cn } from "@/lib/utils";
 import { useState, useCallback } from "react";
-import { Plus, Mail, Pencil, Trash2, X, Check, UserPlus } from "lucide-react";
+import { Plus, Mail, Pencil, Trash2, X, Check, UserPlus, Star } from "lucide-react";
 
 const avatarColors = [
   "bg-blue-500", "bg-green-500", "bg-purple-500", "bg-orange-500",
@@ -30,6 +31,7 @@ function getAvatarColor(name: string) {
 export default function TeamPage() {
   const { user: currentUser } = useAuthStore();
   const isManager = currentUser ? canManageUsers(currentUser) : false;
+  const isED = currentUser?.role === "ED";
   const { data: teamSummary } = useTeamSummary();
   const { data: tasksByAssignee } = useTasksByAssignee();
   const { data: allUsers } = useUsers();
@@ -37,6 +39,8 @@ export default function TeamPage() {
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const createAssignment = useCreateAssignment();
+  const deleteAssignment = useDeleteAssignment();
 
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -44,6 +48,8 @@ export default function TeamPage() {
   const [editForm, setEditForm] = useState<any>({});
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: "", email: "", role: "STAFF", position: "", departmentId: "" });
+  const [addingRoleFor, setAddingRoleFor] = useState<string | null>(null);
+  const [newRole, setNewRole] = useState({ departmentId: "", role: "STAFF", position: "" });
 
   const handleSelectTask = useCallback((taskId: string) => {
     setSelectedTaskId(taskId);
@@ -76,8 +82,28 @@ export default function TeamPage() {
     await deleteUser.mutateAsync(id);
   };
 
-  // Merge team summary (has task counts) with allUsers list for complete picture
-  const members = teamSummary || [];
+  const handleAddAssignment = async (userId: string) => {
+    if (!newRole.departmentId || !newRole.role) return;
+    await createAssignment.mutateAsync({ userId, ...newRole });
+    setAddingRoleFor(null);
+    setNewRole({ departmentId: "", role: "STAFF", position: "" });
+  };
+
+  const handleDeleteAssignment = async (userId: string, assignmentId: string) => {
+    if (!confirm("Remove this role assignment?")) return;
+    await deleteAssignment.mutateAsync({ userId, id: assignmentId });
+  };
+
+  // Use allUsers (which now includes assignments) for display, merge task counts from teamSummary
+  const members = (allUsers || []).map((user: any) => {
+    const summary = teamSummary?.find((s: any) => s.id === user.id);
+    return {
+      ...user,
+      activeTasks: summary?.activeTasks ?? 0,
+      overdueTasks: summary?.overdueTasks ?? 0,
+      criticalTasks: summary?.criticalTasks ?? 0,
+    };
+  });
 
   return (
     <div className="space-y-4">
@@ -207,6 +233,73 @@ export default function TeamPage() {
                   </div>
                   {/* Email display */}
                   <a href={`mailto:${member.email}`} className="text-xs text-primary hover:underline mt-1 block truncate">{member.email}</a>
+
+                  {/* Assignments / Roles */}
+                  {member.assignments && member.assignments.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {member.assignments.map((a: any) => (
+                        <span
+                          key={a.id}
+                          className={cn(
+                            "inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border",
+                            a.isPrimary ? "bg-primary/10 border-primary/30 text-primary" : "bg-muted border-border"
+                          )}
+                        >
+                          {a.isPrimary && <Star className="h-2.5 w-2.5 fill-current" />}
+                          {a.role} · {a.position || "—"} · {a.department?.name || "—"}
+                          {isED && (
+                            <button
+                              className="ml-0.5 hover:text-destructive"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteAssignment(member.id, a.id); }}
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-2">{member.role} · {member.position || "No position"}</p>
+                  )}
+
+                  {/* Add role button (ED only) */}
+                  {isED && addingRoleFor === member.id ? (
+                    <div className="flex flex-wrap gap-2 mt-2 items-center" onClick={e => e.stopPropagation()}>
+                      <Select value={newRole.departmentId || "none"} onValueChange={v => setNewRole(p => ({ ...p, departmentId: v === "none" ? "" : v }))}>
+                        <SelectTrigger className="h-7 text-xs w-32"><SelectValue placeholder="Dept..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Select...</SelectItem>
+                          {departments?.map((d: any) => (
+                            <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={newRole.role} onValueChange={v => setNewRole(p => ({ ...p, role: v }))}>
+                        <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ED">ED</SelectItem>
+                          <SelectItem value="HOD">HOD</SelectItem>
+                          <SelectItem value="MANAGER">Manager</SelectItem>
+                          <SelectItem value="STAFF">Staff</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input placeholder="Position" className="h-7 text-xs w-28" value={newRole.position} onChange={e => setNewRole(p => ({ ...p, position: e.target.value }))} />
+                      <Button size="sm" className="h-7 text-xs px-2" onClick={() => handleAddAssignment(member.id)} disabled={createAssignment.isPending}>
+                        <Check className="h-3 w-3" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setAddingRoleFor(null)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : isED ? (
+                    <button
+                      className="text-[11px] text-primary hover:underline mt-1.5 flex items-center gap-0.5"
+                      onClick={(e) => { e.stopPropagation(); setAddingRoleFor(member.id); setNewRole({ departmentId: "", role: "STAFF", position: "" }); }}
+                    >
+                      <Plus className="h-3 w-3" /> Add Role
+                    </button>
+                  ) : null}
+
                   <div className="flex items-center gap-4 mt-2 text-sm">
                     <span><span className="font-medium">{member.activeTasks}</span> active</span>
                     {member.overdueTasks > 0 && (
