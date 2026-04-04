@@ -15,6 +15,13 @@ const priorityColors: Record<string, string> = {
   Low: "border-l-gray-300",
 };
 
+const priorityDotColors: Record<string, string> = {
+  Critical: "bg-red-500",
+  High: "bg-orange-400",
+  Medium: "bg-blue-400",
+  Low: "bg-gray-300",
+};
+
 const avatarColors = [
   "bg-blue-500", "bg-green-500", "bg-purple-500", "bg-orange-500",
   "bg-pink-500", "bg-teal-500", "bg-indigo-500", "bg-amber-500",
@@ -46,17 +53,52 @@ interface TaskCardProps {
     _count?: { notes: number; subtasks: number; attachments: number };
   };
   compact?: boolean;
+  ultraCompact?: boolean;
   isSelected?: boolean;
   onClick?: (taskId: string) => void;
 }
 
-export function TaskCard({ task, compact = false, isSelected = false, onClick }: TaskCardProps) {
+export function TaskCard({ task, compact = false, ultraCompact = false, isSelected = false, onClick }: TaskCardProps) {
   const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && task.status !== "Done" && task.status !== "Cancelled";
   const isDueToday = task.dueDate && isToday(new Date(task.dueDate));
 
+  // Ultra compact: minimal single-line card
+  if (ultraCompact) {
+    return (
+      <div
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        onClick={() => onClick?.(task.id)}
+        onKeyDown={(e) => { if (onClick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onClick(task.id); } }}
+        className={cn(
+          "flex items-center gap-1.5 px-2 py-1.5 rounded-md border transition-colors cursor-pointer",
+          isOverdue && "border-red-200 bg-red-50/30",
+          isSelected ? "ring-1 ring-primary bg-primary/5" : "hover:bg-accent/30",
+        )}
+      >
+        <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", priorityDotColors[task.priority] || "bg-gray-300")} />
+        <span className={cn("text-xs font-medium truncate flex-1", task.status === "Done" && "line-through text-muted-foreground")}>
+          {task.title}
+        </span>
+        {task.dueDate && (
+          <span className={cn("text-[10px] whitespace-nowrap shrink-0", isOverdue ? "text-red-600 font-medium" : "text-muted-foreground")}>
+            {format(new Date(task.dueDate), "dd/MM")}
+          </span>
+        )}
+        {task.assignee && (
+          <div
+            className={cn("h-5 w-5 rounded-full flex items-center justify-center text-white text-[9px] font-medium shrink-0", getAvatarColor(task.assignee.name))}
+            title={task.assignee.name}
+          >
+            {task.assignee.name.charAt(0)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const doneSubtasks = task.subtasks?.filter(s => s.status === "Done").length ?? 0;
   const totalSubtasks = task.subtasks?.length ?? task._count?.subtasks ?? 0;
-
   const imageAttachments = task.attachments?.filter(a => a.mimeType.startsWith("image/")) ?? [];
   const totalAttachments = task.attachments?.length ?? task._count?.attachments ?? 0;
 
@@ -67,8 +109,6 @@ export function TaskCard({ task, compact = false, isSelected = false, onClick }:
         ? "Due today"
         : "Due " + formatDistanceToNow(new Date(task.dueDate), { addSuffix: true })
     : null;
-
-  const Wrapper = onClick ? "div" : "div";
 
   return (
     <div
@@ -101,13 +141,11 @@ export function TaskCard({ task, compact = false, isSelected = false, onClick }:
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {/* Due date */}
           {dueDateLabel && (
             <span className={cn("text-xs whitespace-nowrap", isOverdue ? "text-red-600 font-medium" : "text-muted-foreground")}>
               {compact ? (task.dueDate ? format(new Date(task.dueDate), "dd MMM") : "") : dueDateLabel}
             </span>
           )}
-          {/* Assignee avatar */}
           {task.assignee && (
             <div
               className={cn("h-6 w-6 rounded-full flex items-center justify-center text-white text-[10px] font-medium shrink-0", getAvatarColor(task.assignee.name))}
@@ -119,43 +157,29 @@ export function TaskCard({ task, compact = false, isSelected = false, onClick }:
         </div>
       </div>
 
-      {/* Bottom row: subtasks + attachments */}
       {!compact && (totalSubtasks > 0 || totalAttachments > 0) && (
         <div className="flex items-center gap-3 mt-2">
-          {/* Subtask progress */}
           {totalSubtasks > 0 && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <CheckCircle2 className="h-3 w-3" />
               <span>{doneSubtasks}/{totalSubtasks}</span>
               <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-green-500 rounded-full transition-all"
-                  style={{ width: `${totalSubtasks > 0 ? (doneSubtasks / totalSubtasks) * 100 : 0}%` }}
-                />
+                <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${totalSubtasks > 0 ? (doneSubtasks / totalSubtasks) * 100 : 0}%` }} />
               </div>
             </div>
           )}
-          {/* Attachment thumbnails */}
           {totalAttachments > 0 && (
             <div className="flex items-center gap-1">
               {imageAttachments.length > 0 ? (
                 <>
                   {imageAttachments.slice(0, 3).map(att => (
-                    <img
-                      key={att.id}
-                      src={getAttachmentUrl(att.id)}
-                      alt={att.filename}
-                      className="h-6 w-6 rounded object-cover border"
-                    />
+                    <img key={att.id} src={getAttachmentUrl(att.id)} alt={att.filename} className="h-6 w-6 rounded object-cover border" />
                   ))}
-                  {totalAttachments > 3 && (
-                    <span className="text-xs text-muted-foreground ml-0.5">+{totalAttachments - 3}</span>
-                  )}
+                  {totalAttachments > 3 && <span className="text-xs text-muted-foreground ml-0.5">+{totalAttachments - 3}</span>}
                 </>
               ) : (
                 <div className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                  <Paperclip className="h-3 w-3" />
-                  <span>{totalAttachments}</span>
+                  <Paperclip className="h-3 w-3" /><span>{totalAttachments}</span>
                 </div>
               )}
             </div>
@@ -163,23 +187,13 @@ export function TaskCard({ task, compact = false, isSelected = false, onClick }:
         </div>
       )}
 
-      {/* Compact mode: just show counts inline */}
       {compact && (totalSubtasks > 0 || totalAttachments > 0) && (
         <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-          {totalSubtasks > 0 && (
-            <span className="flex items-center gap-0.5">
-              <CheckCircle2 className="h-3 w-3" /> {doneSubtasks}/{totalSubtasks}
-            </span>
-          )}
-          {totalAttachments > 0 && (
-            <span className="flex items-center gap-0.5">
-              <Paperclip className="h-3 w-3" /> {totalAttachments}
-            </span>
-          )}
+          {totalSubtasks > 0 && <span className="flex items-center gap-0.5"><CheckCircle2 className="h-3 w-3" /> {doneSubtasks}/{totalSubtasks}</span>}
+          {totalAttachments > 0 && <span className="flex items-center gap-0.5"><Paperclip className="h-3 w-3" /> {totalAttachments}</span>}
         </div>
       )}
 
-      {/* Waiting on indicator */}
       {task.waitingOnWhom && !compact && (
         <p className="text-xs text-yellow-700 mt-1.5">Waiting on: {task.waitingOnWhom}</p>
       )}

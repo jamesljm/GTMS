@@ -4,18 +4,25 @@ import { useState, useCallback, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useTasks } from "@/hooks/use-tasks";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
+import { useUIStore } from "@/store/ui-store";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, List, Kanban, BarChart3, ArrowUpDown } from "lucide-react";
+import {
+  Plus, List, Kanban, BarChart3, ArrowUpDown,
+  CalendarDays, AlignJustify, LayoutGrid, PanelRight,
+} from "lucide-react";
 import { TaskFormDialog } from "@/components/task-form";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
 import { FilterBar } from "@/components/views/filter-bar";
 import { ListView } from "@/components/views/list-view";
 import { KanbanView } from "@/components/views/kanban-view";
 import { GanttView } from "@/components/views/gantt-view";
+import { CalendarView } from "@/components/views/calendar-view";
+import { EmbeddedChatPanel } from "@/components/embedded-chat-panel";
+import { cn } from "@/lib/utils";
 
-type ViewType = "list" | "kanban" | "gantt";
+type ViewType = "list" | "kanban" | "gantt" | "calendar";
 type GroupBy = "none" | "workstream" | "assignee" | "priority";
 
 export default function TasksPage() {
@@ -29,6 +36,7 @@ export default function TasksPage() {
 function TasksContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { viewDensity, setViewDensity, detailPanelMode, setDetailPanelMode } = useUIStore();
 
   const initialView = (searchParams.get("view") as ViewType) || "list";
   const initialTaskId = searchParams.get("task") || null;
@@ -67,6 +75,8 @@ function TasksContent() {
   const { data, isLoading } = useTasks({ ...filters, search: search || undefined });
   const { data: workstreams } = useWorkstreams();
   const { data: users } = useUsers();
+
+  const isPinned = detailPanelMode === "pinned";
 
   const setFilter = useCallback((key: string, value: string) => {
     setFilters(prev => {
@@ -125,6 +135,55 @@ function TasksContent() {
     return () => document.removeEventListener("keydown", handler);
   }, [selectedTaskId, handleClosePanel]);
 
+  const viewContent = (
+    <>
+      {activeView === "list" && (
+        <ListView
+          tasks={data?.tasks || []}
+          pagination={data?.pagination}
+          isLoading={isLoading}
+          selectedTaskId={selectedTaskId}
+          onSelectTask={handleSelectTask}
+          onPageChange={handlePageChange}
+          groupBy={listGroupBy}
+          workstreams={workstreams || []}
+          viewDensity={viewDensity}
+        />
+      )}
+
+      {activeView === "kanban" && (
+        <KanbanView
+          tasks={data?.tasks || []}
+          isLoading={isLoading}
+          selectedTaskId={selectedTaskId}
+          onSelectTask={handleSelectTask}
+          groupBy={kanbanGroupBy}
+          onGroupByChange={setKanbanGroupBy}
+          workstreams={workstreams || []}
+        />
+      )}
+
+      {activeView === "gantt" && (
+        <GanttView
+          tasks={data?.tasks || []}
+          isLoading={isLoading}
+          selectedTaskId={selectedTaskId}
+          onSelectTask={handleSelectTask}
+          workstreams={workstreams || []}
+        />
+      )}
+
+      {activeView === "calendar" && (
+        <CalendarView
+          tasks={data?.tasks || []}
+          isLoading={isLoading}
+          selectedTaskId={selectedTaskId}
+          onSelectTask={handleSelectTask}
+        />
+      )}
+    </>
+  );
+
   return (
     <div className="space-y-3">
       {/* Header */}
@@ -142,13 +201,53 @@ function TasksContent() {
               <TabsTrigger value="gantt" className="text-xs gap-1 px-3">
                 <BarChart3 className="h-3.5 w-3.5" /> Gantt
               </TabsTrigger>
+              <TabsTrigger value="calendar" className="text-xs gap-1 px-3">
+                <CalendarDays className="h-3.5 w-3.5" /> Calendar
+              </TabsTrigger>
             </TabsList>
           </Tabs>
+
+          {/* Density toggle */}
+          {activeView === "list" && (
+            <div className="flex items-center border rounded-md">
+              <Button
+                size="sm"
+                variant={viewDensity === "default" ? "default" : "ghost"}
+                className="h-8 w-8 p-0 rounded-r-none"
+                onClick={() => setViewDensity("default")}
+              >
+                <AlignJustify className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant={viewDensity === "compact" ? "default" : "ghost"}
+                className="h-8 w-8 p-0 rounded-l-none"
+                onClick={() => setViewDensity("compact")}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+
+          {/* Pin toggle */}
+          <Button
+            size="sm"
+            variant={isPinned ? "default" : "outline"}
+            className="h-8 w-8 p-0 hidden lg:flex"
+            onClick={() => setDetailPanelMode(isPinned ? "overlay" : "pinned")}
+            title={isPinned ? "Unpin detail panel" : "Pin detail panel"}
+          >
+            <PanelRight className="h-3.5 w-3.5" />
+          </Button>
+
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4 mr-1" /> New Task
           </Button>
         </div>
       </div>
+
+      {/* Embedded AI Chat */}
+      <EmbeddedChatPanel />
 
       {/* Filter bar */}
       <FilterBar
@@ -199,48 +298,34 @@ function TasksContent() {
         </div>
       )}
 
-      {/* Active view */}
-      {activeView === "list" && (
-        <ListView
-          tasks={data?.tasks || []}
-          pagination={data?.pagination}
-          isLoading={isLoading}
-          selectedTaskId={selectedTaskId}
-          onSelectTask={handleSelectTask}
-          onPageChange={handlePageChange}
-          groupBy={listGroupBy}
-          workstreams={workstreams || []}
-        />
+      {/* Main content area: task views + optional pinned detail panel */}
+      {isPinned ? (
+        <div className="flex gap-0 border rounded-lg overflow-hidden" style={{ height: "calc(100vh - 320px)" }}>
+          {/* Task view area */}
+          <div className="flex-1 min-w-0 overflow-y-auto p-2">
+            {viewContent}
+          </div>
+          {/* Pinned detail panel */}
+          <div className="w-[420px] shrink-0 border-l overflow-y-auto hidden lg:block">
+            <TaskDetailPanel
+              taskId={selectedTaskId}
+              open={!!selectedTaskId}
+              onClose={handleClosePanel}
+              mode="pinned"
+            />
+          </div>
+        </div>
+      ) : (
+        <>
+          {viewContent}
+          <TaskDetailPanel
+            taskId={selectedTaskId}
+            open={!!selectedTaskId}
+            onClose={handleClosePanel}
+            mode="overlay"
+          />
+        </>
       )}
-
-      {activeView === "kanban" && (
-        <KanbanView
-          tasks={data?.tasks || []}
-          isLoading={isLoading}
-          selectedTaskId={selectedTaskId}
-          onSelectTask={handleSelectTask}
-          groupBy={kanbanGroupBy}
-          onGroupByChange={setKanbanGroupBy}
-          workstreams={workstreams || []}
-        />
-      )}
-
-      {activeView === "gantt" && (
-        <GanttView
-          tasks={data?.tasks || []}
-          isLoading={isLoading}
-          selectedTaskId={selectedTaskId}
-          onSelectTask={handleSelectTask}
-          workstreams={workstreams || []}
-        />
-      )}
-
-      {/* Task detail panel */}
-      <TaskDetailPanel
-        taskId={selectedTaskId}
-        open={!!selectedTaskId}
-        onClose={handleClosePanel}
-      />
 
       {/* Create task dialog */}
       <TaskFormDialog open={showCreate} onOpenChange={setShowCreate} />

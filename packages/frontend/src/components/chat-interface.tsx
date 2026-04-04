@@ -1,9 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { ChatActionCard } from "@/components/chat-action-card";
 import { useSendMessage, useChatSession } from "@/hooks/use-chat";
 import { Send, Loader2, Bot, User } from "lucide-react";
@@ -20,16 +17,16 @@ interface Message {
 interface ChatInterfaceProps {
   sessionId?: string;
   onSessionCreated?: (sessionId: string) => void;
+  compact?: boolean;
 }
 
-export function ChatInterface({ sessionId, onSessionCreated }: ChatInterfaceProps) {
+export function ChatInterface({ sessionId, onSessionCreated, compact = false }: ChatInterfaceProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState(sessionId || "");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sendMessage = useSendMessage();
 
-  // Load existing session messages
   const { data: session } = useChatSession(currentSessionId);
 
   useEffect(() => {
@@ -79,36 +76,42 @@ export function ChatInterface({ sessionId, onSessionCreated }: ChatInterfaceProp
     }
   };
 
+  const avatarSize = compact ? "h-6 w-6" : "h-8 w-8";
+  const iconSize = compact ? "h-3 w-3" : "h-4 w-4";
+
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-4 p-4">
+      <div className={cn("flex-1 overflow-y-auto space-y-3", compact ? "p-3" : "p-4 space-y-4")}>
         {messages.length === 0 && (
-          <div className="text-center py-8">
-            <Bot className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-            <p className="text-lg font-medium">GTMS AI Assistant</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Ask me to create tasks, check status, or manage your workstreams.
+          <div className={cn("text-center", compact ? "py-4" : "py-8")}>
+            <Bot className={cn("mx-auto text-muted-foreground mb-2", compact ? "h-8 w-8" : "h-12 w-12 mb-3")} />
+            <p className={cn("font-medium", compact ? "text-sm" : "text-lg")}>AI Assistant</p>
+            <p className={cn("text-muted-foreground mt-1", compact ? "text-xs" : "text-sm")}>
+              {compact ? "Ask about tasks, create or update them" : "Ask me to create tasks, check status, or manage your workstreams."}
             </p>
-            <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-              <p>"Add task: follow up with June on OCBC e-giro, Finance, High priority"</p>
-              <p>"What are my critical tasks this week?"</p>
-              <p>"Mark the MRT3 tender review as done"</p>
-              <p>"Show all tasks waiting on external parties"</p>
-            </div>
+            {!compact && (
+              <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+                <p>"Add task: follow up with June on OCBC e-giro, Finance, High priority"</p>
+                <p>"What are my critical tasks this week?"</p>
+                <p>"Mark the MRT3 tender review as done"</p>
+                <p>"Show all tasks waiting on external parties"</p>
+              </div>
+            )}
           </div>
         )}
 
         {messages.map((msg, i) => (
-          <div key={i} className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
+          <div key={i} className={cn("flex gap-2", msg.role === "user" ? "justify-end" : "justify-start")}>
             {msg.role === "assistant" && (
-              <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground shrink-0">
-                <Bot className="h-4 w-4" />
+              <div className={cn(avatarSize, "rounded-full bg-primary flex items-center justify-center text-primary-foreground shrink-0")}>
+                <Bot className={iconSize} />
               </div>
             )}
             <div className={cn("max-w-[80%] space-y-2", msg.role === "user" ? "order-first" : "")}>
               <div className={cn(
-                "rounded-lg px-4 py-2 text-sm",
+                "rounded-lg px-3 py-2",
+                compact ? "text-xs" : "text-sm px-4",
                 msg.role === "user"
                   ? "bg-primary text-primary-foreground ml-auto"
                   : "bg-muted"
@@ -120,21 +123,21 @@ export function ChatInterface({ sessionId, onSessionCreated }: ChatInterfaceProp
               ))}
             </div>
             {msg.role === "user" && (
-              <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
-                <User className="h-4 w-4" />
+              <div className={cn(avatarSize, "rounded-full bg-secondary flex items-center justify-center shrink-0")}>
+                <User className={iconSize} />
               </div>
             )}
           </div>
         ))}
 
         {sendMessage.isPending && (
-          <div className="flex gap-3">
-            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground">
-              <Bot className="h-4 w-4" />
+          <div className="flex gap-2">
+            <div className={cn(avatarSize, "rounded-full bg-primary flex items-center justify-center text-primary-foreground")}>
+              <Bot className={iconSize} />
             </div>
-            <div className="bg-muted rounded-lg px-4 py-2 flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm">Thinking...</span>
+            <div className={cn("bg-muted rounded-lg px-3 py-2 flex items-center gap-2", compact ? "text-xs" : "text-sm")}>
+              <Loader2 className={cn(iconSize, "animate-spin")} />
+              <span>Thinking...</span>
             </div>
           </div>
         )}
@@ -143,18 +146,15 @@ export function ChatInterface({ sessionId, onSessionCreated }: ChatInterfaceProp
       </div>
 
       {/* Input */}
-      <div className="border-t p-4">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSend();
-          }}
-          className="flex gap-2"
-        >
+      <div className={cn("border-t", compact ? "p-2" : "p-4")}>
+        <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex gap-2">
           <input
             type="text"
-            className="flex-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            placeholder="Ask me anything about your tasks..."
+            className={cn(
+              "flex-1 flex w-full rounded-md border border-input bg-background px-3 py-1.5 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+              compact ? "h-8 text-xs" : "h-10 text-sm py-2",
+            )}
+            placeholder={compact ? "Ask AI..." : "Ask me anything about your tasks..."}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={sendMessage.isPending}
@@ -162,9 +162,12 @@ export function ChatInterface({ sessionId, onSessionCreated }: ChatInterfaceProp
           <button
             type="submit"
             disabled={!input.trim() || sendMessage.isPending}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 w-10 disabled:opacity-50 disabled:pointer-events-none"
+            className={cn(
+              "inline-flex items-center justify-center rounded-md font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none",
+              compact ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm",
+            )}
           >
-            <Send className="h-4 w-4" />
+            <Send className={iconSize} />
           </button>
         </form>
       </div>
