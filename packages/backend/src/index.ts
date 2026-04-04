@@ -87,18 +87,6 @@ app.get('/api/v1/admin/db-url', authenticate, (req, res) => {
   res.json({ url: process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL || '' });
 });
 
-// Temporary seed endpoint (remove after seeding)
-app.post('/api/v1/admin/seed', async (req, res) => {
-  try {
-    const { runSeed } = await import('./seed-runner');
-    await runSeed();
-    res.json({ ok: true, message: 'Database seeded successfully' });
-  } catch (err) {
-    console.error('Seed failed:', err);
-    res.status(500).json({ error: (err as Error).message });
-  }
-});
-
 // Error handler
 app.use(errorHandler);
 
