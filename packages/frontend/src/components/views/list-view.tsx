@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import { TaskCard } from "@/components/task-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,10 +17,34 @@ interface ListViewProps {
   groupBy?: GroupBy;
   workstreams?: any[];
   viewDensity?: "default" | "compact";
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  onLoadMore?: () => void;
 }
 
-export function ListView({ tasks, pagination, isLoading, selectedTaskId, onSelectTask, onPageChange, groupBy = "none", workstreams = [], viewDensity = "default" }: ListViewProps) {
+export function ListView({ tasks, pagination, isLoading, selectedTaskId, onSelectTask, onPageChange, groupBy = "none", workstreams = [], viewDensity = "default", hasNextPage, isFetchingNextPage, onLoadMore }: ListViewProps) {
   const isCompact = viewDensity === "compact";
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!isCompact || !onLoadMore || !hasNextPage) return;
+
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isCompact, onLoadMore, hasNextPage, isFetchingNextPage]);
 
   const grouped = useMemo(() => {
     if (groupBy === "none") return null;
@@ -77,6 +101,8 @@ export function ListView({ tasks, pagination, isLoading, selectedTaskId, onSelec
     ? { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "6px" }
     : undefined;
 
+  const useInfiniteScroll = isCompact && !!onLoadMore;
+
   return (
     <div className="space-y-2">
       {grouped ? (
@@ -114,7 +140,20 @@ export function ListView({ tasks, pagination, isLoading, selectedTaskId, onSelec
         </div>
       )}
 
-      {pagination && pagination.totalPages > 1 && (
+      {/* Infinite scroll sentinel */}
+      {useInfiniteScroll && (
+        <>
+          <div ref={sentinelRef} className="h-1" />
+          {isFetchingNextPage && (
+            <div className="flex justify-center py-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Traditional pagination (non-compact only) */}
+      {!useInfiniteScroll && pagination && pagination.totalPages > 1 && (
         <div className="flex justify-center items-center gap-2 pt-2">
           <Button variant="outline" size="sm" disabled={pagination.page <= 1} onClick={() => onPageChange(pagination.page - 1)}>
             Previous

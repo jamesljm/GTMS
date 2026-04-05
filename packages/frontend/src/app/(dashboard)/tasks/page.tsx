@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useTasks } from "@/hooks/use-tasks";
+import { useTasks, useInfiniteTasks } from "@/hooks/use-tasks";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
 import { useUIStore } from "@/store/ui-store";
 import { Button } from "@/components/ui/button";
@@ -71,7 +71,22 @@ function TasksContent() {
   const [kanbanGroupBy, setKanbanGroupBy] = useState<"status" | "workstream">("status");
   const [listGroupBy, setListGroupBy] = useState<GroupBy>("none");
 
-  const { data, isLoading } = useTasks({ ...filters, search: search || undefined });
+  const isCompactList = viewDensity === "compact" && activeView === "list";
+
+  // Use infinite query for compact list, regular query otherwise
+  const regularQuery = useTasks(isCompactList ? {} : { ...filters, search: search || undefined });
+  const infiniteQuery = useInfiniteTasks(isCompactList ? { ...filters, search: search || undefined } : {});
+
+  // Derive tasks and metadata based on mode
+  const tasks = isCompactList
+    ? infiniteQuery.data?.pages.flatMap((p: any) => p.tasks) || []
+    : regularQuery.data?.tasks || [];
+  const pagination = isCompactList ? undefined : regularQuery.data?.pagination;
+  const totalCount = isCompactList
+    ? infiniteQuery.data?.pages[0]?.pagination?.total ?? 0
+    : regularQuery.data?.pagination?.total ?? 0;
+  const isLoading = isCompactList ? infiniteQuery.isLoading : regularQuery.isLoading;
+
   const { data: workstreams } = useWorkstreams();
   const { data: users } = useUsers();
 
@@ -138,8 +153,8 @@ function TasksContent() {
     <>
       {activeView === "list" && (
         <ListView
-          tasks={data?.tasks || []}
-          pagination={data?.pagination}
+          tasks={tasks}
+          pagination={pagination}
           isLoading={isLoading}
           selectedTaskId={selectedTaskId}
           onSelectTask={handleSelectTask}
@@ -147,13 +162,16 @@ function TasksContent() {
           groupBy={listGroupBy}
           workstreams={workstreams || []}
           viewDensity={viewDensity}
+          hasNextPage={isCompactList ? infiniteQuery.hasNextPage : undefined}
+          isFetchingNextPage={isCompactList ? infiniteQuery.isFetchingNextPage : undefined}
+          onLoadMore={isCompactList ? () => infiniteQuery.fetchNextPage() : undefined}
         />
       )}
 
       {activeView === "kanban" && (
         <KanbanView
-          tasks={data?.tasks || []}
-          isLoading={isLoading}
+          tasks={regularQuery.data?.tasks || []}
+          isLoading={regularQuery.isLoading}
           selectedTaskId={selectedTaskId}
           onSelectTask={handleSelectTask}
           groupBy={kanbanGroupBy}
@@ -164,8 +182,8 @@ function TasksContent() {
 
       {activeView === "gantt" && (
         <GanttView
-          tasks={data?.tasks || []}
-          isLoading={isLoading}
+          tasks={regularQuery.data?.tasks || []}
+          isLoading={regularQuery.isLoading}
           selectedTaskId={selectedTaskId}
           onSelectTask={handleSelectTask}
           workstreams={workstreams || []}
@@ -174,8 +192,8 @@ function TasksContent() {
 
       {activeView === "calendar" && (
         <CalendarView
-          tasks={data?.tasks || []}
-          isLoading={isLoading}
+          tasks={regularQuery.data?.tasks || []}
+          isLoading={regularQuery.isLoading}
           selectedTaskId={selectedTaskId}
           onSelectTask={handleSelectTask}
         />
@@ -258,6 +276,12 @@ function TasksContent() {
       {/* Sort & Group controls for list view */}
       {activeView === "list" && (
         <div className="flex items-center gap-3 text-sm">
+          {/* Total count */}
+          {totalCount > 0 && (
+            <span className="text-sm font-medium text-muted-foreground">
+              {totalCount} task{totalCount !== 1 ? "s" : ""}
+            </span>
+          )}
           <div className="flex items-center gap-1.5">
             <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-muted-foreground">Sort:</span>

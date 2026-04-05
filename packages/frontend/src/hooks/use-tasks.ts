@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -6,6 +6,20 @@ export function useTasks(filters: Record<string, any> = {}) {
   return useQuery({
     queryKey: ["tasks", filters],
     queryFn: () => api.get("/tasks", { params: filters }).then(r => r.data),
+  });
+}
+
+export function useInfiniteTasks(filters: Record<string, any> = {}) {
+  const { page, ...rest } = filters;
+  return useInfiniteQuery({
+    queryKey: ["tasks", "infinite", rest],
+    queryFn: ({ pageParam = 1 }) =>
+      api.get("/tasks", { params: { ...rest, page: pageParam, limit: 50 } }).then(r => r.data),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage: any) =>
+      lastPage.pagination.page < lastPage.pagination.totalPages
+        ? lastPage.pagination.page + 1
+        : undefined,
   });
 }
 
