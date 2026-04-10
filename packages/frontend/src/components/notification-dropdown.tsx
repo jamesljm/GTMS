@@ -44,7 +44,7 @@ export function NotificationDropdown() {
       markRead.mutate(n.id);
     }
     if (n.taskId) {
-      router.push(`/tasks?selected=${n.taskId}`);
+      router.push(`/tasks?task=${n.taskId}`);
     }
     setOpen(false);
   };

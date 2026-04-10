@@ -86,6 +86,7 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
         )}
       >
         <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", isDraft ? "bg-gray-400" : (priorityDotColors[task.priority] || "bg-gray-300"))} />
+        <span className="text-[10px] text-muted-foreground font-mono shrink-0">{task.id.slice(0, 6)}</span>
         <span className={cn("text-xs font-medium truncate flex-1", task.status === "Done" && "line-through text-muted-foreground")}>
           {task.title}
         </span>
@@ -137,9 +138,12 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <p className={cn("text-sm font-medium", task.status === "Done" && "line-through text-muted-foreground", compact ? "truncate" : "")}>
-            {task.title}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground font-mono shrink-0">{task.id.slice(0, 6)}</span>
+            <p className={cn("text-sm font-medium", task.status === "Done" && "line-through text-muted-foreground", compact ? "truncate" : "")}>
+              {task.title}
+            </p>
+          </div>
           {!compact && (
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               <PriorityBadge priority={task.priority} />

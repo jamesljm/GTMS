@@ -176,6 +176,7 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
         <div className="p-6 pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1 pr-2">
+              <span className="text-xs font-mono text-muted-foreground">{task.id.slice(0, 8)}</span>
               {editing ? (
                 <Input
                   value={editForm.title}

@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config';
 import { prisma } from '../prisma';
+import { createNotification } from '../routes/notifications';
+import { createAuditLog } from '../routes/audit';
 
 const anthropic = config.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: config.ANTHROPIC_API_KEY })
@@ -116,6 +118,9 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
         assigneeId = user?.id || null;
       }
 
+      // Set acceptance status
+      const acceptanceStatus = (assigneeId && assigneeId !== userId) ? 'Pending' : 'Accepted';
+
       const task = await prisma.task.create({
         data: {
           title: input.title,
@@ -129,13 +134,27 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
           workstreamId,
           assigneeId,
           createdById: userId,
+          acceptanceStatus,
         },
         include: { workstream: true, assignee: { select: { name: true, email: true } } },
       });
-      return { action: 'created', task: { id: task.id, title: task.title, priority: task.priority, workstream: task.workstream?.code, assignee: task.assignee?.name, dueDate: task.dueDate } };
+
+      // Create proposal if pending
+      if (acceptanceStatus === 'Pending' && assigneeId) {
+        await prisma.taskProposal.create({
+          data: { taskId: task.id, proposerId: userId, action: 'PROPOSED', proposedTitle: input.title, proposedDescription: input.description },
+        }).catch(() => {});
+        await createNotification(assigneeId, 'TASK_ASSIGNED', 'New task assigned', `You have been assigned: ${input.title}`, task.id).catch(() => {});
+      }
+      await createAuditLog(userId, 'task.created', task.id, { title: input.title, source: 'Chat' }).catch(() => {});
+
+      return { action: 'created', task: { id: task.id, title: task.title, priority: task.priority, workstream: task.workstream?.code, assignee: task.assignee?.name, dueDate: task.dueDate, acceptanceStatus } };
     }
 
     case 'update_task': {
+      const existing = await prisma.task.findUnique({ where: { id: input.taskId } });
+      if (!existing) return { error: 'Task not found' };
+
       const data: any = {};
       if (input.title) data.title = input.title;
       if (input.status) {
@@ -147,7 +166,13 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
       if (input.waitingOnWhom) data.waitingOnWhom = input.waitingOnWhom;
       if (input.assigneeEmail) {
         const user = await prisma.user.findUnique({ where: { email: input.assigneeEmail } });
-        if (user) data.assigneeId = user.id;
+        if (user) {
+          data.assigneeId = user.id;
+          // Reset acceptance if reassigned to different person
+          if (user.id !== existing.assigneeId && user.id !== userId) {
+            data.acceptanceStatus = 'Pending';
+          }
+        }
       }
 
       const task = await prisma.task.update({
@@ -155,6 +180,17 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
         data,
         include: { workstream: true, assignee: { select: { name: true } } },
       });
+
+      // Audit & notifications
+      if (input.status === 'Done' && existing.status !== 'Done') {
+        await createAuditLog(userId, 'task.completed', task.id, { title: task.title }).catch(() => {});
+        if (existing.createdById !== userId) {
+          await createNotification(existing.createdById, 'TASK_COMPLETED', 'Task completed', `Task completed: ${task.title}`, task.id).catch(() => {});
+        }
+      } else {
+        await createAuditLog(userId, 'task.updated', task.id, data).catch(() => {});
+      }
+
       return { action: 'updated', task: { id: task.id, title: task.title, status: task.status, priority: task.priority } };
     }
 
@@ -290,9 +326,11 @@ ${teamInfo}
 
 ## Guidelines
 - If the user's intent is ambiguous, ask for clarification
-- For queries, show results in a clean format
+- For queries, show results in a clean format with the short task ID (first 6 chars)
 - When creating tasks, infer the workstream from context if not specified
-- Always include the task ID in responses for reference`;
+- ALWAYS include the short task ID (first 6 characters of the UUID) in responses so users can reference tasks, e.g. "Task abc123: Follow up with June"
+- When listing tasks, format each as: [ID] Title - Status - Priority - Due date
+- Tasks assigned to others require acceptance from the assignee before they become active`;
 }
 
 export interface ChatResult {
