@@ -104,3 +104,66 @@ export function useDeleteTask() {
     },
   });
 }
+
+export function usePendingReview() {
+  return useQuery({
+    queryKey: ["tasks", "pending-review"],
+    queryFn: () => api.get("/tasks/pending-review").then(r => r.data),
+  });
+}
+
+export function useTaskProposals(taskId: string) {
+  return useQuery({
+    queryKey: ["task-proposals", taskId],
+    queryFn: () => api.get(`/tasks/${taskId}/proposals`).then(r => r.data),
+    enabled: !!taskId,
+  });
+}
+
+export function useAcceptTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post(`/tasks/${id}/accept`).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["task-proposals"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Task accepted");
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to accept task");
+    },
+  });
+}
+
+export function useRequestChanges() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, comment }: { id: string; comment: string }) =>
+      api.post(`/tasks/${id}/request-changes`, { comment }).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["task-proposals"] });
+      toast.success("Changes requested");
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to request changes");
+    },
+  });
+}
+
+export function useReproposeTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; proposedTitle?: string; proposedDescription?: string; comment?: string }) =>
+      api.post(`/tasks/${id}/repropose`, data).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["task-proposals"] });
+      toast.success("Counter-proposal sent");
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to repropose task");
+    },
+  });
+}

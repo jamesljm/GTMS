@@ -5,7 +5,7 @@ import { config } from '../config';
 import { prisma } from '../prisma';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validate';
-import { loginSchema, changePasswordSchema } from 'shared';
+import { loginSchema, signupSchema, changePasswordSchema } from 'shared';
 import { AppError } from '../middleware/error';
 
 const router = Router();
@@ -22,6 +22,35 @@ function generateTokens(user: { id: string; email: string; name: string; role: s
   const refreshToken = jwt.sign({ id: user.id }, config.JWT_REFRESH_SECRET, { expiresIn: config.JWT_REFRESH_EXPIRES_IN as any });
   return { accessToken, refreshToken };
 }
+
+// POST /signup
+router.post('/signup', validate(signupSchema), asyncHandler(async (req: Request, res: Response) => {
+  const { email, name, password } = req.body;
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) throw new AppError(409, 'Email already in use');
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const user = await prisma.user.create({
+    data: { email, name, passwordHash, role: 'STAFF' },
+    include: { dept: { select: { id: true, name: true, code: true } } },
+  });
+
+  const tokens = generateTokens(user);
+
+  res.status(201).json({
+    ...tokens,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      position: user.position,
+      departmentId: user.departmentId,
+      department: user.dept,
+    },
+  });
+}));
 
 // POST /login - email + password
 router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, res: Response) => {

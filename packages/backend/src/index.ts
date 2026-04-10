@@ -21,6 +21,8 @@ import departmentRoutes from './routes/departments';
 import webhookRoutes from './routes/webhooks';
 import assignmentRoutes from './routes/assignments';
 import exportRoutes from './routes/export';
+import notificationRoutes from './routes/notifications';
+import auditRoutes from './routes/audit';
 
 // Workers
 import { startWorkers, setupRecurringJobs } from './services/workers';
@@ -57,6 +59,7 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/v1/auth/signup', authLimiter);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -76,6 +79,8 @@ app.use('/api/v1/attachments', authenticate, attachmentRoutes);
 app.use('/api/v1/departments', authenticate, departmentRoutes);
 app.use('/api/v1/users/:userId/assignments', authenticate, assignmentRoutes);
 app.use('/api/v1/export', authenticate, exportRoutes);
+app.use('/api/v1/notifications', authenticate, notificationRoutes);
+app.use('/api/v1/audit-logs', authenticate, auditRoutes);
 app.use('/api/v1/webhooks', webhookRoutes); // No auth for webhooks
 
 // Admin endpoints

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useTask, useUpdateTask, useCreateTask } from "@/hooks/use-tasks";
+import { useTask, useUpdateTask, useCreateTask, useAcceptTask, useRequestChanges, useReproposeTask, useTaskProposals } from "@/hooks/use-tasks";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
 import { useAuthStore } from "@/store/auth-store";
 import { canEditAllFields, canDeleteTask } from "@/lib/permissions";
@@ -14,9 +14,11 @@ import { PriorityBadge } from "@/components/priority-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { WorkstreamBadge } from "@/components/workstream-badge";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import {
   Trash2, Upload, Plus, CheckCircle2, Circle,
   FileText, X, Download, Pencil, Check,
+  MessageSquareMore, ArrowLeftRight, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { format } from "date-fns";
 import { api } from "@/lib/api";
@@ -34,6 +36,10 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
   const { data: task, isLoading } = useTask(taskId);
   const updateTask = useUpdateTask();
   const createTask = useCreateTask();
+  const acceptTask = useAcceptTask();
+  const requestChanges = useRequestChanges();
+  const reproposeTask = useReproposeTask();
+  const { data: proposals } = useTaskProposals(taskId);
   const uploadAttachment = useUploadAttachment();
   const deleteAttachment = useDeleteAttachment();
   const queryClient = useQueryClient();
@@ -58,6 +64,13 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [showChangesForm, setShowChangesForm] = useState(false);
+  const [showReproposeForm, setShowReproposeForm] = useState(false);
+  const [changesComment, setChangesComment] = useState("");
+  const [reproposeTitle, setReproposeTitle] = useState("");
+  const [reproposeDesc, setReproposeDesc] = useState("");
+  const [reproposeComment, setReproposeComment] = useState("");
+  const [showProposalHistory, setShowProposalHistory] = useState(false);
 
   // Reset edit mode when task changes
   useEffect(() => {
@@ -336,6 +349,119 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
               ))}
             </div>
           </div>
+
+          {/* Acceptance section */}
+          {task.acceptanceStatus && task.acceptanceStatus !== "Accepted" && (
+            <div className="border rounded-lg p-3 space-y-3 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">Acceptance:</span>
+                <Badge variant="outline" className={cn(
+                  "text-[10px]",
+                  task.acceptanceStatus === "Pending" && "bg-gray-100 text-gray-600",
+                  task.acceptanceStatus === "Changes Requested" && "bg-amber-100 text-amber-700",
+                  task.acceptanceStatus === "Reproposed" && "bg-violet-100 text-violet-700",
+                )}>
+                  {task.acceptanceStatus}
+                </Badge>
+              </div>
+
+              {/* Assignee actions: Pending */}
+              {currentUser?.id === task.assigneeId && task.acceptanceStatus === "Pending" && (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" className="h-7 text-xs" onClick={() => acceptTask.mutate(task.id)} disabled={acceptTask.isPending}>
+                      <Check className="h-3 w-3 mr-1" /> Accept
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowChangesForm(!showChangesForm); setShowReproposeForm(false); }}>
+                      <MessageSquareMore className="h-3 w-3 mr-1" /> Request Changes
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowReproposeForm(!showReproposeForm); setShowChangesForm(false); setReproposeTitle(task.title); setReproposeDesc(task.description || ""); }}>
+                      <ArrowLeftRight className="h-3 w-3 mr-1" /> Counter-Propose
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Initiator actions: Changes Requested or Reproposed */}
+              {currentUser?.id === task.createdById && (task.acceptanceStatus === "Changes Requested" || task.acceptanceStatus === "Reproposed") && (
+                <div className="flex flex-wrap gap-2">
+                  {task.acceptanceStatus === "Reproposed" && (
+                    <Button size="sm" className="h-7 text-xs" onClick={() => acceptTask.mutate(task.id)} disabled={acceptTask.isPending}>
+                      <Check className="h-3 w-3 mr-1" /> Accept Proposal
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowReproposeForm(!showReproposeForm); setReproposeTitle(task.title); setReproposeDesc(task.description || ""); }}>
+                    <ArrowLeftRight className="h-3 w-3 mr-1" /> Re-Propose
+                  </Button>
+                </div>
+              )}
+
+              {/* Request Changes form */}
+              {showChangesForm && (
+                <div className="space-y-2">
+                  <Textarea placeholder="Explain what needs to change..." value={changesComment} onChange={(e) => setChangesComment(e.target.value)} rows={2} className="text-sm" />
+                  <div className="flex gap-2">
+                    <Button size="sm" className="h-7 text-xs" onClick={() => { requestChanges.mutate({ id: task.id, comment: changesComment }); setChangesComment(""); setShowChangesForm(false); }} disabled={!changesComment.trim() || requestChanges.isPending}>
+                      Submit
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowChangesForm(false)}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Repropose form */}
+              {showReproposeForm && (
+                <div className="space-y-2">
+                  <Input placeholder="Proposed title" value={reproposeTitle} onChange={(e) => setReproposeTitle(e.target.value)} className="h-8 text-sm" />
+                  <Textarea placeholder="Proposed description" value={reproposeDesc} onChange={(e) => setReproposeDesc(e.target.value)} rows={2} className="text-sm" />
+                  <Textarea placeholder="Optional comment..." value={reproposeComment} onChange={(e) => setReproposeComment(e.target.value)} rows={1} className="text-sm" />
+                  <div className="flex gap-2">
+                    <Button size="sm" className="h-7 text-xs" onClick={() => {
+                      reproposeTask.mutate({
+                        id: task.id,
+                        proposedTitle: reproposeTitle !== task.title ? reproposeTitle : undefined,
+                        proposedDescription: reproposeDesc !== (task.description || "") ? reproposeDesc : undefined,
+                        comment: reproposeComment || undefined,
+                      });
+                      setReproposeComment("");
+                      setShowReproposeForm(false);
+                    }} disabled={reproposeTask.isPending}>
+                      Send
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowReproposeForm(false)}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Negotiation History */}
+              {proposals && proposals.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setShowProposalHistory(!showProposalHistory)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showProposalHistory ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    Negotiation History ({proposals.length})
+                  </button>
+                  {showProposalHistory && (
+                    <div className="mt-2 space-y-2 border-l-2 border-muted pl-3">
+                      {proposals.map((p: any) => (
+                        <div key={p.id} className="text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium">{p.proposer?.name}</span>
+                            <Badge variant="outline" className="text-[10px] py-0 h-4">{p.action.replace("_", " ")}</Badge>
+                            <span className="text-muted-foreground">{format(new Date(p.createdAt), "dd MMM HH:mm")}</span>
+                          </div>
+                          {p.comment && <p className="text-muted-foreground mt-0.5">{p.comment}</p>}
+                          {p.proposedTitle && <p className="mt-0.5">Title: {p.proposedTitle}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <Separator />
 

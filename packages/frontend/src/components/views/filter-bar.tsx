@@ -72,6 +72,18 @@ export function FilterBar({ filters, setFilter, search, setSearch, workstreams, 
           ))}
         </SelectContent>
       </Select>
+      <Select value={filters.acceptanceStatus || "all"} onValueChange={(v) => setFilter("acceptanceStatus", v)}>
+        <SelectTrigger className="w-[140px] h-9">
+          <SelectValue placeholder="Acceptance" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Acceptance</SelectItem>
+          <SelectItem value="Accepted">Accepted</SelectItem>
+          <SelectItem value="Pending">Pending</SelectItem>
+          <SelectItem value="Changes Requested">Changes Requested</SelectItem>
+          <SelectItem value="Reproposed">Reproposed</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   );
 }

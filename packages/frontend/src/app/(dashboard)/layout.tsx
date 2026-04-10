@@ -6,17 +6,20 @@ import Link from "next/link";
 import { useAuthStore } from "@/store/auth-store";
 import {
   LayoutDashboard, ListTodo, MessageSquare, Users, Layers,
-  Settings, LogOut, Menu, X, Building2,
+  Settings, LogOut, Menu, X, Building2, ClipboardCheck, Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
 import { EmbeddedChatPanel } from "@/components/embedded-chat-panel";
+import { NotificationDropdown } from "@/components/notification-dropdown";
 import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Tasks", href: "/tasks", icon: ListTodo },
+  { name: "Pending", href: "/pending", icon: ClipboardCheck },
   { name: "AI Chat", href: "/chat", icon: MessageSquare },
+  { name: "Activity", href: "/activity", icon: Activity },
   { name: "Team", href: "/team", icon: Users },
   { name: "Departments", href: "/departments", icon: Building2 },
   { name: "Workstreams", href: "/workstreams", icon: Layers },
@@ -57,7 +60,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
         <span className="font-bold text-primary text-lg">GTMS</span>
-        <div className="w-10" />
+        <NotificationDropdown />
       </div>
 
       {/* Sidebar */}
@@ -67,8 +70,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}>
         <div className="flex flex-col h-full">
           <div className="p-6 border-b hidden lg:block">
-            <h1 className="text-xl font-bold text-primary">GTMS</h1>
-            <p className="text-xs text-muted-foreground mt-1">Geohan Corporation</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-bold text-primary">GTMS</h1>
+                <p className="text-xs text-muted-foreground mt-1">Geohan Corporation</p>
+              </div>
+              <NotificationDropdown />
+            </div>
           </div>
 
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto mt-16 lg:mt-0">

@@ -1,9 +1,11 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
 import { validate } from '../middleware/validate';
-import { createTaskSchema, updateTaskSchema, taskFilterSchema } from 'shared';
+import { createTaskSchema, updateTaskSchema, taskFilterSchema, requestChangesSchema, reproposeSchema } from 'shared';
 import { AppError } from '../middleware/error';
 import { getVisibleTaskFilter, canEditTask } from '../middleware/rbac';
+import { createNotification } from './notifications';
+import { createAuditLog } from './audit';
 
 const router = Router();
 
@@ -25,7 +27,7 @@ const taskInclude = {
 
 // GET / - list tasks with filters
 router.get('/', validate(taskFilterSchema, 'query'), asyncHandler(async (req: Request, res: Response) => {
-  const { status, priority, type, workstreamId, assigneeId, search, dueBefore, dueAfter, page, limit, sortBy, sortOrder } = req.query as any;
+  const { status, priority, type, workstreamId, assigneeId, acceptanceStatus, search, dueBefore, dueAfter, page, limit, sortBy, sortOrder } = req.query as any;
 
   const where: any = {};
   if (status) where.status = status;
@@ -33,20 +35,30 @@ router.get('/', validate(taskFilterSchema, 'query'), asyncHandler(async (req: Re
   if (type) where.type = type;
   if (workstreamId) where.workstreamId = workstreamId;
   if (assigneeId) where.assigneeId = assigneeId;
+  if (acceptanceStatus) {
+    if (acceptanceStatus === 'Accepted') {
+      where.OR = [{ acceptanceStatus: 'Accepted' }, { acceptanceStatus: null }];
+    } else {
+      where.acceptanceStatus = acceptanceStatus;
+    }
+  }
   if (search) {
-    where.OR = [
-      { title: { contains: search, mode: 'insensitive' } },
-      { description: { contains: search, mode: 'insensitive' } },
+    where.AND = [
+      ...(where.AND || []),
+      {
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ],
+      },
     ];
   }
   if (dueBefore || dueAfter) {
     where.dueDate = {};
     if (dueBefore === 'overdue') {
-      // Tasks due before now (overdue)
       where.dueDate.lt = new Date();
       where.status = { notIn: ['Done', 'Cancelled'] };
     } else if (dueBefore === 'thisWeek') {
-      // Tasks due by end of this week
       const endOfWeek = new Date();
       endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()));
       endOfWeek.setHours(23, 59, 59, 999);
@@ -131,6 +143,29 @@ router.get('/waiting', asyncHandler(async (req: Request, res: Response) => {
   res.json(tasks);
 }));
 
+// GET /pending-review - tasks needing acceptance action
+router.get('/pending-review', asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+
+  const [asAssignee, asInitiator] = await Promise.all([
+    prisma.task.findMany({
+      where: { assigneeId: userId, acceptanceStatus: 'Pending' },
+      include: taskInclude,
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.task.findMany({
+      where: {
+        createdById: userId,
+        acceptanceStatus: { in: ['Changes Requested', 'Reproposed'] },
+      },
+      include: taskInclude,
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  res.json({ asAssignee, asInitiator });
+}));
+
 // GET /by-workstream - tasks grouped by workstream
 router.get('/by-workstream', asyncHandler(async (req: Request, res: Response) => {
   const rbacFilter = await getVisibleTaskFilter(req.user!);
@@ -153,7 +188,6 @@ router.get('/by-workstream', asyncHandler(async (req: Request, res: Response) =>
 router.get('/by-assignee', asyncHandler(async (req: Request, res: Response) => {
   const user = req.user!;
 
-  // Scope user list by role
   let userWhere: any = { isActive: true };
   if (user.role === 'HOD' || user.role === 'MANAGER') {
     if (user.departmentId) {
@@ -164,7 +198,6 @@ router.get('/by-assignee', asyncHandler(async (req: Request, res: Response) => {
   } else if (user.role === 'STAFF') {
     userWhere = { isActive: true, id: user.id };
   }
-  // ED sees all active users
 
   const users = await prisma.user.findMany({
     where: userWhere,
@@ -207,9 +240,26 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   res.json(task);
 }));
 
+// GET /:id/proposals - negotiation history
+router.get('/:id/proposals', asyncHandler(async (req: Request, res: Response) => {
+  const proposals = await prisma.taskProposal.findMany({
+    where: { taskId: req.params.id },
+    include: { proposer: { select: { id: true, name: true, email: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  res.json(proposals);
+}));
+
 // POST / - create task
 router.post('/', validate(createTaskSchema), asyncHandler(async (req: Request, res: Response) => {
   const data = req.body;
+  const userId = req.user!.id;
+
+  // Determine acceptance status
+  let acceptanceStatus: string | null = 'Accepted';
+  if (data.assigneeId && data.assigneeId !== userId) {
+    acceptanceStatus = 'Pending';
+  }
 
   const task = await prisma.task.create({
     data: {
@@ -225,12 +275,214 @@ router.post('/', validate(createTaskSchema), asyncHandler(async (req: Request, r
       parentId: data.parentId,
       waitingOnWhom: data.waitingOnWhom,
       recurringCron: data.recurringCron,
-      createdById: req.user!.id,
+      createdById: userId,
+      acceptanceStatus,
     },
     include: taskInclude,
   });
 
+  // Create initial proposal if pending
+  if (acceptanceStatus === 'Pending') {
+    await prisma.taskProposal.create({
+      data: {
+        taskId: task.id,
+        proposerId: userId,
+        action: 'PROPOSED',
+        proposedTitle: data.title,
+        proposedDescription: data.description,
+      },
+    });
+
+    // Notify assignee
+    await createNotification(
+      data.assigneeId,
+      'TASK_ASSIGNED',
+      'New task assigned',
+      `You have been assigned a new task: ${data.title}`,
+      task.id,
+    ).catch(() => {}); // non-critical
+  }
+
+  // Audit log
+  await createAuditLog(userId, 'task.created', task.id, {
+    title: data.title,
+    assigneeId: data.assigneeId,
+  }).catch(() => {});
+
   res.status(201).json(task);
+}));
+
+// POST /:id/accept - accept a task or counter-proposal
+router.post('/:id/accept', asyncHandler(async (req: Request, res: Response) => {
+  const task = await prisma.task.findUnique({ where: { id: req.params.id }, include: { createdBy: { select: { id: true, name: true } }, assignee: { select: { id: true, name: true } } } });
+  if (!task) throw new AppError(404, 'Task not found');
+
+  const userId = req.user!.id;
+  let updateData: any = { acceptanceStatus: 'Accepted' };
+
+  if (task.assigneeId === userId && task.acceptanceStatus === 'Pending') {
+    // Assignee accepting
+  } else if (task.createdById === userId && task.acceptanceStatus === 'Reproposed') {
+    // Initiator accepting counter-proposal — apply proposed changes
+    const lastProposal = await prisma.taskProposal.findFirst({
+      where: { taskId: task.id, action: 'REPROPOSED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (lastProposal) {
+      if (lastProposal.proposedTitle) updateData.title = lastProposal.proposedTitle;
+      if (lastProposal.proposedDescription) updateData.description = lastProposal.proposedDescription;
+    }
+  } else {
+    throw new AppError(403, 'You cannot accept this task in its current state');
+  }
+
+  const updated = await prisma.task.update({
+    where: { id: task.id },
+    data: updateData,
+    include: taskInclude,
+  });
+
+  await prisma.taskProposal.create({
+    data: { taskId: task.id, proposerId: userId, action: 'ACCEPTED' },
+  });
+
+  // Notify the other party
+  const notifyUserId = userId === task.assigneeId ? task.createdById : task.assigneeId;
+  if (notifyUserId) {
+    await createNotification(
+      notifyUserId,
+      'TASK_ACCEPTED',
+      'Task accepted',
+      `${req.user!.name} accepted task: ${updated.title}`,
+      task.id,
+    ).catch(() => {});
+  }
+
+  await createAuditLog(userId, 'task.accepted', task.id).catch(() => {});
+
+  res.json(updated);
+}));
+
+// POST /:id/request-changes
+router.post('/:id/request-changes', validate(requestChangesSchema), asyncHandler(async (req: Request, res: Response) => {
+  const task = await prisma.task.findUnique({ where: { id: req.params.id }, include: { assignee: { select: { id: true, name: true } } } });
+  if (!task) throw new AppError(404, 'Task not found');
+
+  const userId = req.user!.id;
+  if (task.assigneeId !== userId || task.acceptanceStatus !== 'Pending') {
+    throw new AppError(403, 'You cannot request changes on this task');
+  }
+
+  const updated = await prisma.task.update({
+    where: { id: task.id },
+    data: { acceptanceStatus: 'Changes Requested' },
+    include: taskInclude,
+  });
+
+  await prisma.taskProposal.create({
+    data: {
+      taskId: task.id,
+      proposerId: userId,
+      action: 'CHANGES_REQUESTED',
+      comment: req.body.comment,
+    },
+  });
+
+  // Notify creator
+  await createNotification(
+    task.createdById,
+    'TASK_CHANGES_REQUESTED',
+    'Changes requested',
+    `${req.user!.name} requested changes on task: ${task.title}`,
+    task.id,
+  ).catch(() => {});
+
+  await createAuditLog(userId, 'task.changes_requested', task.id, { comment: req.body.comment }).catch(() => {});
+
+  res.json(updated);
+}));
+
+// POST /:id/repropose
+router.post('/:id/repropose', validate(reproposeSchema), asyncHandler(async (req: Request, res: Response) => {
+  const task = await prisma.task.findUnique({ where: { id: req.params.id }, include: { assignee: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } } });
+  if (!task) throw new AppError(404, 'Task not found');
+
+  const userId = req.user!.id;
+  const { proposedTitle, proposedDescription, comment } = req.body;
+
+  if (task.assigneeId === userId && task.acceptanceStatus === 'Pending') {
+    // Assignee counter-proposing
+    if (!proposedTitle && !proposedDescription && !comment) {
+      throw new AppError(400, 'At least one field is required when counter-proposing');
+    }
+
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { acceptanceStatus: 'Reproposed' },
+    });
+
+    await prisma.taskProposal.create({
+      data: {
+        taskId: task.id,
+        proposerId: userId,
+        action: 'REPROPOSED',
+        proposedTitle,
+        proposedDescription,
+        comment,
+      },
+    });
+
+    // Notify creator
+    await createNotification(
+      task.createdById,
+      'TASK_REPROPOSED',
+      'Counter-proposal',
+      `${req.user!.name} counter-proposed task: ${task.title}`,
+      task.id,
+    ).catch(() => {});
+
+    await createAuditLog(userId, 'task.reproposed', task.id, { proposedTitle, proposedDescription, comment }).catch(() => {});
+
+  } else if (task.createdById === userId && task.acceptanceStatus === 'Changes Requested') {
+    // Initiator re-proposing after changes requested
+    const updateData: any = { acceptanceStatus: 'Pending' };
+    if (proposedTitle) updateData.title = proposedTitle;
+    if (proposedDescription) updateData.description = proposedDescription;
+
+    await prisma.task.update({
+      where: { id: task.id },
+      data: updateData,
+    });
+
+    await prisma.taskProposal.create({
+      data: {
+        taskId: task.id,
+        proposerId: userId,
+        action: 'PROPOSED',
+        proposedTitle,
+        proposedDescription,
+        comment,
+      },
+    });
+
+    // Notify assignee
+    if (task.assigneeId) {
+      await createNotification(
+        task.assigneeId,
+        'TASK_ASSIGNED',
+        'Task re-proposed',
+        `${req.user!.name} re-proposed task: ${proposedTitle || task.title}`,
+        task.id,
+      ).catch(() => {});
+    }
+
+    await createAuditLog(userId, 'task.reproposed', task.id, { proposedTitle, proposedDescription, comment }).catch(() => {});
+  } else {
+    throw new AppError(403, 'You cannot repropose this task in its current state');
+  }
+
+  const updated = await prisma.task.findUnique({ where: { id: task.id }, include: taskInclude });
+  res.json(updated);
 }));
 
 // PATCH /:id - update task
@@ -243,6 +495,7 @@ router.patch('/:id', validate(updateTaskSchema), asyncHandler(async (req: Reques
   if (!allowed) throw new AppError(403, 'You do not have permission to edit this task');
 
   const data: any = { ...req.body };
+  const userId = req.user!.id;
 
   // STAFF can only update status
   if (req.user!.role === 'STAFF' && existing.assigneeId !== req.user!.id && existing.createdById !== req.user!.id) {
@@ -269,11 +522,74 @@ router.patch('/:id', validate(updateTaskSchema), asyncHandler(async (req: Reques
     data.completedAt = null;
   }
 
+  // Handle reassignment: reset acceptance status
+  if (data.assigneeId !== undefined) {
+    if (data.assigneeId && data.assigneeId !== existing.assigneeId) {
+      if (data.assigneeId !== userId) {
+        data.acceptanceStatus = 'Pending';
+      } else {
+        data.acceptanceStatus = 'Accepted';
+      }
+    } else if (!data.assigneeId) {
+      data.acceptanceStatus = 'Accepted';
+    }
+  }
+
+  // Build audit details (changed fields only)
+  const changedFields: Record<string, any> = {};
+  for (const key of Object.keys(data)) {
+    if ((existing as any)[key] !== data[key]) {
+      changedFields[key] = { from: (existing as any)[key], to: data[key] };
+    }
+  }
+
   const task = await prisma.task.update({
     where: { id: req.params.id },
     data,
     include: taskInclude,
   });
+
+  // Notifications
+  if (data.assigneeId && data.assigneeId !== existing.assigneeId && data.assigneeId !== userId) {
+    await createNotification(
+      data.assigneeId,
+      'TASK_ASSIGNED',
+      'New task assigned',
+      `You have been assigned task: ${task.title}`,
+      task.id,
+    ).catch(() => {});
+
+    // Create proposal for new assignee
+    await prisma.taskProposal.create({
+      data: {
+        taskId: task.id,
+        proposerId: userId,
+        action: 'PROPOSED',
+        proposedTitle: task.title,
+        proposedDescription: task.description,
+      },
+    }).catch(() => {});
+  }
+
+  if (data.status === 'Done' && existing.status !== 'Done') {
+    // Notify creator if different from person completing
+    if (existing.createdById !== userId) {
+      await createNotification(
+        existing.createdById,
+        'TASK_COMPLETED',
+        'Task completed',
+        `${req.user!.name} completed task: ${task.title}`,
+        task.id,
+      ).catch(() => {});
+    }
+
+    await createAuditLog(userId, 'task.completed', task.id, { title: task.title }).catch(() => {});
+  }
+
+  // Audit log for update
+  if (Object.keys(changedFields).length > 0) {
+    await createAuditLog(userId, 'task.updated', task.id, changedFields).catch(() => {});
+  }
 
   res.json(task);
 }));
@@ -288,6 +604,9 @@ router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
   }
 
   await prisma.task.delete({ where: { id: req.params.id } });
+
+  await createAuditLog(req.user!.id, 'task.deleted', req.params.id, { title: existing.title }).catch(() => {});
+
   res.json({ message: 'Task deleted' });
 }));
 

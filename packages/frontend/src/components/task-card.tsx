@@ -37,6 +37,12 @@ function getInitials(name: string) {
   return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
+const acceptanceBadgeStyles: Record<string, string> = {
+  Pending: "bg-gray-100 text-gray-600",
+  "Changes Requested": "bg-amber-100 text-amber-700",
+  Reproposed: "bg-violet-100 text-violet-700",
+};
+
 interface TaskCardProps {
   task: {
     id: string;
@@ -45,6 +51,7 @@ interface TaskCardProps {
     priority: string;
     type: string;
     dueDate: string | null;
+    acceptanceStatus?: string | null;
     waitingOnWhom?: string | null;
     workstream?: { code: string; name: string; color: string } | null;
     assignee?: { id: string; name: string } | null;
@@ -61,6 +68,7 @@ interface TaskCardProps {
 export function TaskCard({ task, compact = false, ultraCompact = false, isSelected = false, onClick }: TaskCardProps) {
   const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && task.status !== "Done" && task.status !== "Cancelled";
   const isDueToday = task.dueDate && isToday(new Date(task.dueDate));
+  const isDraft = task.acceptanceStatus && task.acceptanceStatus !== "Accepted";
 
   // Ultra compact: minimal single-line card
   if (ultraCompact) {
@@ -72,11 +80,12 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
         onKeyDown={(e) => { if (onClick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onClick(task.id); } }}
         className={cn(
           "flex items-center gap-1.5 px-2 py-1.5 rounded-md border transition-colors cursor-pointer",
+          isDraft && "border-dashed opacity-70",
           isOverdue && "border-red-200 bg-red-50/30",
           isSelected ? "ring-1 ring-primary bg-primary/5" : "hover:bg-accent/30",
         )}
       >
-        <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", priorityDotColors[task.priority] || "bg-gray-300")} />
+        <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", isDraft ? "bg-gray-400" : (priorityDotColors[task.priority] || "bg-gray-300"))} />
         <span className={cn("text-xs font-medium truncate flex-1", task.status === "Done" && "line-through text-muted-foreground")}>
           {task.title}
         </span>
@@ -119,6 +128,7 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
       className={cn(
         "block rounded-lg border border-l-4 p-3 transition-colors cursor-pointer",
         priorityColors[task.priority] || "border-l-gray-300",
+        isDraft && "border-dashed opacity-70",
         isOverdue && "border-red-200 bg-red-50/30",
         isDueToday && !isOverdue && "border-yellow-200 bg-yellow-50/30",
         isSelected && "ring-2 ring-primary bg-primary/5",
@@ -136,6 +146,11 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
               <StatusBadge status={task.status} />
               {task.workstream && (
                 <WorkstreamBadge code={task.workstream.code} color={task.workstream.color} />
+              )}
+              {isDraft && task.acceptanceStatus && (
+                <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", acceptanceBadgeStyles[task.acceptanceStatus] || "bg-gray-100 text-gray-600")}>
+                  {task.acceptanceStatus}
+                </span>
               )}
             </div>
           )}

@@ -5,6 +5,12 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const signupSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1).max(100),
+  password: z.string().min(8),
+});
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8),
@@ -56,6 +62,7 @@ export const taskFilterSchema = z.object({
   type: z.string().optional(),
   workstreamId: z.string().optional(),
   assigneeId: z.string().optional(),
+  acceptanceStatus: z.string().optional(),
   search: z.string().optional(),
   dueBefore: z.string().optional(),
   dueAfter: z.string().optional(),
@@ -65,13 +72,34 @@ export const taskFilterSchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).default('asc'),
 });
 
+export const taskProposalSchema = z.object({
+  action: z.enum(['PROPOSED', 'ACCEPTED', 'CHANGES_REQUESTED', 'REPROPOSED']),
+  proposedTitle: z.string().optional(),
+  proposedDescription: z.string().optional(),
+  comment: z.string().optional(),
+});
+
+export const requestChangesSchema = z.object({
+  comment: z.string().min(1, 'Comment is required when requesting changes'),
+});
+
+export const reproposeSchema = z.object({
+  proposedTitle: z.string().optional(),
+  proposedDescription: z.string().optional(),
+  comment: z.string().optional(),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
+export type SignupInput = z.infer<typeof signupSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 export type AddNoteInput = z.infer<typeof addNoteSchema>;
 export type ChatMessageInput = z.infer<typeof chatMessageSchema>;
 export type TaskFilterInput = z.infer<typeof taskFilterSchema>;
+export type TaskProposalInput = z.infer<typeof taskProposalSchema>;
+export type RequestChangesInput = z.infer<typeof requestChangesSchema>;
+export type ReproposeInput = z.infer<typeof reproposeSchema>;
 
 export const createDepartmentSchema = z.object({
   name: z.string().min(1).max(100),

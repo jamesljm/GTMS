@@ -15,6 +15,7 @@ interface GanttBarProps {
     title: string;
     priority: string;
     status: string;
+    acceptanceStatus?: string | null;
   };
   left: number;
   width: number;
@@ -26,6 +27,7 @@ interface GanttBarProps {
 export function GanttBar({ task, left, width, isSelected, onClick, mode }: GanttBarProps) {
   const colorClass = priorityBarColors[task.priority] || "bg-gray-300";
   const isDone = task.status === "Done";
+  const isDraft = task.acceptanceStatus && task.acceptanceStatus !== "Accepted";
 
   if (mode === "milestone") {
     return (
@@ -53,6 +55,7 @@ export function GanttBar({ task, left, width, isSelected, onClick, mode }: Gantt
         "absolute top-1 bottom-1 rounded cursor-pointer transition-all group",
         colorClass,
         isDone && "opacity-50",
+        isDraft && "opacity-50 border border-dashed border-white/50",
         isSelected && "ring-2 ring-primary ring-offset-1",
       )}
       style={{ left, width: Math.max(width, 16) }}

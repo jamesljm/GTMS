@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ListTodo, MessageSquare, Users, Layers } from "lucide-react";
+import { LayoutDashboard, ListTodo, MessageSquare, ClipboardCheck, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Home" },
   { href: "/tasks", icon: ListTodo, label: "Tasks" },
+  { href: "/pending", icon: ClipboardCheck, label: "Pending" },
   { href: "/chat", icon: MessageSquare, label: "Chat" },
-  { href: "/team", icon: Users, label: "Team" },
   { href: "/workstreams", icon: Layers, label: "Streams" },
 ];
 
