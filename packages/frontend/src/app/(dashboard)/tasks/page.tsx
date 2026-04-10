@@ -67,7 +67,8 @@ function TasksContent() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initialTaskId);
   const [showCreate, setShowCreate] = useState(false);
   const [filters, setFilters] = useState<Record<string, any>>(initialFilters);
-  const [search, setSearch] = useState("");
+  const initialSearch = searchParams.get("search") || "";
+  const [search, setSearch] = useState(initialSearch);
   const [kanbanGroupBy, setKanbanGroupBy] = useState<"status" | "workstream">("status");
   const [listGroupBy, setListGroupBy] = useState<GroupBy>("none");
 

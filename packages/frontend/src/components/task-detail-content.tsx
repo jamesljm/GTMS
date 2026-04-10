@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useTask, useUpdateTask, useCreateTask, useAcceptTask, useRequestChanges, useReproposeTask, useTaskProposals } from "@/hooks/use-tasks";
+import { useTask, useUpdateTask, useCreateTask, useAcceptTask, useRequestChanges, useReproposeTask, useRejectProposal, useTaskProposals } from "@/hooks/use-tasks";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
 import { useAuthStore } from "@/store/auth-store";
 import { canEditAllFields, canDeleteTask } from "@/lib/permissions";
@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Trash2, Upload, Plus, CheckCircle2, Circle,
   FileText, X, Download, Pencil, Check,
-  MessageSquareMore, ArrowLeftRight, ChevronDown, ChevronUp,
+  MessageSquareMore, ArrowLeftRight, ChevronDown, ChevronUp, XCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { api } from "@/lib/api";
@@ -39,6 +39,7 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
   const acceptTask = useAcceptTask();
   const requestChanges = useRequestChanges();
   const reproposeTask = useReproposeTask();
+  const rejectProposal = useRejectProposal();
   const { data: proposals } = useTaskProposals(taskId);
   const uploadAttachment = useUploadAttachment();
   const deleteAttachment = useDeleteAttachment();
@@ -66,7 +67,9 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [showChangesForm, setShowChangesForm] = useState(false);
   const [showReproposeForm, setShowReproposeForm] = useState(false);
+  const [showRejectForm, setShowRejectForm] = useState(false);
   const [changesComment, setChangesComment] = useState("");
+  const [rejectComment, setRejectComment] = useState("");
   const [reproposeTitle, setReproposeTitle] = useState("");
   const [reproposeDesc, setReproposeDesc] = useState("");
   const [reproposeComment, setReproposeComment] = useState("");
@@ -383,16 +386,23 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
                 </div>
               )}
 
-              {/* Initiator actions: Changes Requested or Reproposed */}
-              {currentUser?.id === task.createdById && (task.acceptanceStatus === "Changes Requested" || task.acceptanceStatus === "Reproposed") && (
+              {/* Initiator actions: Changes Requested */}
+              {currentUser?.id === task.createdById && task.acceptanceStatus === "Changes Requested" && (
                 <div className="flex flex-wrap gap-2">
-                  {task.acceptanceStatus === "Reproposed" && (
-                    <Button size="sm" className="h-7 text-xs" onClick={() => acceptTask.mutate(task.id)} disabled={acceptTask.isPending}>
-                      <Check className="h-3 w-3 mr-1" /> Accept Proposal
-                    </Button>
-                  )}
                   <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowReproposeForm(!showReproposeForm); setReproposeTitle(task.title); setReproposeDesc(task.description || ""); }}>
                     <ArrowLeftRight className="h-3 w-3 mr-1" /> Re-Propose
+                  </Button>
+                </div>
+              )}
+
+              {/* Initiator actions: Reproposed */}
+              {currentUser?.id === task.createdById && task.acceptanceStatus === "Reproposed" && (
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" className="h-7 text-xs" onClick={() => acceptTask.mutate(task.id)} disabled={acceptTask.isPending}>
+                    <Check className="h-3 w-3 mr-1" /> Accept Proposal
+                  </Button>
+                  <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => { setShowRejectForm(!showRejectForm); setShowReproposeForm(false); }}>
+                    <XCircle className="h-3 w-3 mr-1" /> Reject & Revert
                   </Button>
                 </div>
               )}
@@ -430,6 +440,20 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
                       Send
                     </Button>
                     <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowReproposeForm(false)}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Reject proposal form */}
+              {showRejectForm && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">This will revert the task to its original version and resend it to the assignee.</p>
+                  <Textarea placeholder="Optional reason for rejection..." value={rejectComment} onChange={(e) => setRejectComment(e.target.value)} rows={2} className="text-sm" />
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => { rejectProposal.mutate({ id: task.id, comment: rejectComment || undefined }); setRejectComment(""); setShowRejectForm(false); }} disabled={rejectProposal.isPending}>
+                      Confirm Reject
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowRejectForm(false)}>Cancel</Button>
                   </div>
                 </div>
               )}

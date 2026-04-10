@@ -167,3 +167,20 @@ export function useReproposeTask() {
     },
   });
 }
+
+export function useRejectProposal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, comment }: { id: string; comment?: string }) =>
+      api.post(`/tasks/${id}/reject-proposal`, { comment }).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["task-proposals"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Counter-proposal rejected, task reverted and resent");
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to reject proposal");
+    },
+  });
+}

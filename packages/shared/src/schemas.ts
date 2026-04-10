@@ -73,9 +73,13 @@ export const taskFilterSchema = z.object({
 });
 
 export const taskProposalSchema = z.object({
-  action: z.enum(['PROPOSED', 'ACCEPTED', 'CHANGES_REQUESTED', 'REPROPOSED']),
+  action: z.enum(['PROPOSED', 'ACCEPTED', 'CHANGES_REQUESTED', 'REPROPOSED', 'REJECTED']),
   proposedTitle: z.string().optional(),
   proposedDescription: z.string().optional(),
+  comment: z.string().optional(),
+});
+
+export const rejectProposalSchema = z.object({
   comment: z.string().optional(),
 });
 
@@ -100,6 +104,7 @@ export type TaskFilterInput = z.infer<typeof taskFilterSchema>;
 export type TaskProposalInput = z.infer<typeof taskProposalSchema>;
 export type RequestChangesInput = z.infer<typeof requestChangesSchema>;
 export type ReproposeInput = z.infer<typeof reproposeSchema>;
+export type RejectProposalInput = z.infer<typeof rejectProposalSchema>;
 
 export const createDepartmentSchema = z.object({
   name: z.string().min(1).max(100),

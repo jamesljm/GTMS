@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
 import { validate } from '../middleware/validate';
-import { createTaskSchema, updateTaskSchema, taskFilterSchema, requestChangesSchema, reproposeSchema } from 'shared';
+import { createTaskSchema, updateTaskSchema, taskFilterSchema, requestChangesSchema, reproposeSchema, rejectProposalSchema } from 'shared';
 import { AppError } from '../middleware/error';
 import { getVisibleTaskFilter, canEditTask } from '../middleware/rbac';
 import { createNotification } from './notifications';
@@ -323,15 +323,7 @@ router.post('/:id/accept', asyncHandler(async (req: Request, res: Response) => {
   if (task.assigneeId === userId && task.acceptanceStatus === 'Pending') {
     // Assignee accepting
   } else if (task.createdById === userId && task.acceptanceStatus === 'Reproposed') {
-    // Initiator accepting counter-proposal — apply proposed changes
-    const lastProposal = await prisma.taskProposal.findFirst({
-      where: { taskId: task.id, action: 'REPROPOSED' },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (lastProposal) {
-      if (lastProposal.proposedTitle) updateData.title = lastProposal.proposedTitle;
-      if (lastProposal.proposedDescription) updateData.description = lastProposal.proposedDescription;
-    }
+    // Initiator accepting counter-proposal — changes already applied to task, just accept
   } else {
     throw new AppError(403, 'You cannot accept this task in its current state');
   }
@@ -411,23 +403,33 @@ router.post('/:id/repropose', validate(reproposeSchema), asyncHandler(async (req
   const { proposedTitle, proposedDescription, comment } = req.body;
 
   if (task.assigneeId === userId && task.acceptanceStatus === 'Pending') {
-    // Assignee counter-proposing
+    // Assignee counter-proposing — apply new values directly, save originals as snapshot
     if (!proposedTitle && !proposedDescription && !comment) {
       throw new AppError(400, 'At least one field is required when counter-proposing');
     }
 
+    // Save original values as snapshot in the proposal for potential revert
+    const snapshotTitle = task.title;
+    const snapshotDescription = task.description;
+
+    // Apply the assignee's proposed changes directly to the task
+    const taskUpdate: any = { acceptanceStatus: 'Reproposed' };
+    if (proposedTitle) taskUpdate.title = proposedTitle;
+    if (proposedDescription) taskUpdate.description = proposedDescription;
+
     await prisma.task.update({
       where: { id: task.id },
-      data: { acceptanceStatus: 'Reproposed' },
+      data: taskUpdate,
     });
 
+    // Store the ORIGINAL values in the proposal record (for revert on reject)
     await prisma.taskProposal.create({
       data: {
         taskId: task.id,
         proposerId: userId,
         action: 'REPROPOSED',
-        proposedTitle,
-        proposedDescription,
+        proposedTitle: snapshotTitle,
+        proposedDescription: snapshotDescription,
         comment,
       },
     });
@@ -482,6 +484,59 @@ router.post('/:id/repropose', validate(reproposeSchema), asyncHandler(async (req
   }
 
   const updated = await prisma.task.findUnique({ where: { id: task.id }, include: taskInclude });
+  res.json(updated);
+}));
+
+// POST /:id/reject-proposal - initiator rejects counter-proposal, reverts task
+router.post('/:id/reject-proposal', validate(rejectProposalSchema), asyncHandler(async (req: Request, res: Response) => {
+  const task = await prisma.task.findUnique({ where: { id: req.params.id }, include: { assignee: { select: { id: true, name: true } } } });
+  if (!task) throw new AppError(404, 'Task not found');
+
+  const userId = req.user!.id;
+  if (task.createdById !== userId || task.acceptanceStatus !== 'Reproposed') {
+    throw new AppError(403, 'You cannot reject a proposal on this task in its current state');
+  }
+
+  // Find the last REPROPOSED proposal — its proposedTitle/proposedDescription are the ORIGINAL values (snapshot)
+  const lastProposal = await prisma.taskProposal.findFirst({
+    where: { taskId: task.id, action: 'REPROPOSED' },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  // Revert task to original values and reset to Pending (resend to same assignee)
+  const revertData: any = { acceptanceStatus: 'Pending' };
+  if (lastProposal?.proposedTitle) revertData.title = lastProposal.proposedTitle;
+  if (lastProposal?.proposedDescription) revertData.description = lastProposal.proposedDescription;
+
+  const updated = await prisma.task.update({
+    where: { id: task.id },
+    data: revertData,
+    include: taskInclude,
+  });
+
+  // Create REJECTED proposal record
+  await prisma.taskProposal.create({
+    data: {
+      taskId: task.id,
+      proposerId: userId,
+      action: 'REJECTED',
+      comment: req.body.comment,
+    },
+  });
+
+  // Notify assignee
+  if (task.assigneeId) {
+    await createNotification(
+      task.assigneeId,
+      'TASK_CHANGES_REQUESTED',
+      'Counter-proposal rejected',
+      `${req.user!.name} rejected your counter-proposal on task: ${updated.title}. The task has been resent to you.`,
+      task.id,
+    ).catch(() => {});
+  }
+
+  await createAuditLog(userId, 'task.proposal_rejected', task.id, { comment: req.body.comment }).catch(() => {});
+
   res.json(updated);
 }));
 

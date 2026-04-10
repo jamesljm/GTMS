@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { usePendingReview, useAcceptTask, useRequestChanges, useReproposeTask, useTaskProposals } from "@/hooks/use-tasks";
+import { usePendingReview, useAcceptTask, useRequestChanges, useReproposeTask, useRejectProposal, useTaskProposals } from "@/hooks/use-tasks";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Check, MessageSquareMore, ArrowLeftRight, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, MessageSquareMore, ArrowLeftRight, Clock, ChevronDown, ChevronUp, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function ProposalHistory({ taskId }: { taskId: string }) {
@@ -54,9 +54,12 @@ function TaskActionCard({ task, role }: { task: any; role: "assignee" | "initiat
   const acceptTask = useAcceptTask();
   const requestChanges = useRequestChanges();
   const reproposeTask = useReproposeTask();
+  const rejectProposal = useRejectProposal();
   const [showChangesForm, setShowChangesForm] = useState(false);
   const [showReproposeForm, setShowReproposeForm] = useState(false);
+  const [showRejectForm, setShowRejectForm] = useState(false);
   const [comment, setComment] = useState("");
+  const [rejectComment, setRejectComment] = useState("");
   const [proposedTitle, setProposedTitle] = useState(task.title || "");
   const [proposedDescription, setProposedDescription] = useState(task.description || "");
 
@@ -128,8 +131,8 @@ function TaskActionCard({ task, role }: { task: any; role: "assignee" | "initiat
               <Button size="sm" className="h-7 text-xs" onClick={handleAccept} disabled={acceptTask.isPending}>
                 <Check className="h-3 w-3 mr-1" /> Accept Proposal
               </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowReproposeForm(!showReproposeForm); }}>
-                <ArrowLeftRight className="h-3 w-3 mr-1" /> Re-Propose
+              <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => { setShowRejectForm(!showRejectForm); setShowReproposeForm(false); }}>
+                <XCircle className="h-3 w-3 mr-1" /> Reject & Revert
               </Button>
             </>
           )}
@@ -189,6 +192,28 @@ function TaskActionCard({ task, role }: { task: any; role: "assignee" | "initiat
                 Send Proposal
               </Button>
               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowReproposeForm(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Reject proposal form */}
+        {showRejectForm && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-muted-foreground">This will revert the task to its original version and resend it to the assignee.</p>
+            <Textarea
+              placeholder="Optional reason for rejection..."
+              value={rejectComment}
+              onChange={(e) => setRejectComment(e.target.value)}
+              rows={2}
+              className="text-sm"
+            />
+            <div className="flex gap-2">
+              <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => { rejectProposal.mutate({ id: task.id, comment: rejectComment || undefined }); setRejectComment(""); setShowRejectForm(false); }} disabled={rejectProposal.isPending}>
+                Confirm Reject
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowRejectForm(false)}>
                 Cancel
               </Button>
             </div>

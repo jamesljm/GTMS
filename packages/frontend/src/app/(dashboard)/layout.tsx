@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
 import { EmbeddedChatPanel } from "@/components/embedded-chat-panel";
 import { NotificationDropdown } from "@/components/notification-dropdown";
+import { GlobalSearch } from "@/components/global-search";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -55,11 +56,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen flex">
       {/* Mobile header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b p-4 flex items-center justify-between">
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-md hover:bg-accent">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b p-4 flex items-center gap-2">
+        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-md hover:bg-accent shrink-0">
           {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
-        <span className="font-bold text-primary text-lg">GTMS</span>
+        <div className="flex-1 min-w-0">
+          <GlobalSearch />
+        </div>
         <NotificationDropdown />
       </div>
 
@@ -135,6 +138,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main content */}
       <main className="flex-1 lg:ml-64 mt-16 lg:mt-0 pb-20 lg:pb-0">
+        <div className="hidden lg:block sticky top-0 z-10 bg-white border-b px-6 py-3">
+          <GlobalSearch />
+        </div>
         <div className="p-4 md:p-6">{children}</div>
       </main>
 
