@@ -17,8 +17,44 @@ import { TaskCard } from "@/components/task-card";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
 import { cn } from "@/lib/utils";
 import { useState, useCallback } from "react";
-import { Plus, Mail, Pencil, Trash2, X, Check, UserPlus, Star, KeyRound, Copy } from "lucide-react";
+import { Plus, Mail, Pencil, Trash2, X, Check, UserPlus, Star, KeyRound, Copy, Shield, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+
+function RoleBadge({ role }: { role: string }) {
+  if (role === "SUPER_ADMIN") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 font-semibold">
+        <ShieldCheck className="h-3 w-3" /> Super Admin
+      </span>
+    );
+  }
+  if (role === "ED") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200 font-semibold">
+        <Shield className="h-3 w-3" /> ED
+      </span>
+    );
+  }
+  if (role === "HOD") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 font-medium">
+        HOD
+      </span>
+    );
+  }
+  if (role === "MANAGER") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium">
+        Manager
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+      Staff
+    </span>
+  );
+}
 
 const avatarColors = [
   "bg-blue-500", "bg-green-500", "bg-purple-500", "bg-orange-500",
@@ -174,8 +210,8 @@ export default function TeamPage() {
               <Select value={newUser.role} onValueChange={v => setNewUser(p => ({ ...p, role: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-                  <SelectItem value="ED">ED</SelectItem>
+                  {isSuperAdmin && <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>}
+                  {isED && <SelectItem value="ED">ED</SelectItem>}
                   <SelectItem value="HOD">HOD</SelectItem>
                   <SelectItem value="MANAGER">Manager</SelectItem>
                   <SelectItem value="STAFF">Staff</SelectItem>
@@ -230,8 +266,8 @@ export default function TeamPage() {
                   <Select value={editForm.role} onValueChange={v => setEditForm((p: any) => ({ ...p, role: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-                      <SelectItem value="ED">ED</SelectItem>
+                      {isSuperAdmin && <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>}
+                      {isED && <SelectItem value="ED">ED</SelectItem>}
                       <SelectItem value="HOD">HOD</SelectItem>
                       <SelectItem value="MANAGER">Manager</SelectItem>
                       <SelectItem value="STAFF">Staff</SelectItem>
@@ -263,14 +299,19 @@ export default function TeamPage() {
                       <p className="font-medium truncate">{member.name}</p>
                       <p className="text-xs text-muted-foreground">{member.position} · {member.department || member.dept?.name || "No Dept"}</p>
                     </div>
+                    <RoleBadge role={member.role} />
+                  </div>
+                  {/* Email + actions row */}
+                  <div className="flex items-center justify-between mt-1.5">
+                    <a href={`mailto:${member.email}`} className="text-xs text-primary hover:underline truncate">{member.email}</a>
                     <div className="flex gap-1 shrink-0">
                       {isSuperAdmin && (
-                        <Button size="icon" variant="ghost" className="h-7 w-7" title="Reset Password" onClick={(e) => { e.stopPropagation(); openResetPassword(member); }}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-amber-600" title="Reset Password" onClick={(e) => { e.stopPropagation(); openResetPassword(member); }}>
                           <KeyRound className="h-3.5 w-3.5" />
                         </Button>
                       )}
                       {isManager && (
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); startEdit(member); }}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit User" onClick={(e) => { e.stopPropagation(); startEdit(member); }}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                       )}
@@ -279,15 +320,13 @@ export default function TeamPage() {
                           <Mail className="h-3.5 w-3.5" />
                         </a>
                       </Button>
-                      {isManager && (
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteUser(member.id); }}>
+                      {isED && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Deactivate User" onClick={(e) => { e.stopPropagation(); handleDeleteUser(member.id); }}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       )}
                     </div>
                   </div>
-                  {/* Email display */}
-                  <a href={`mailto:${member.email}`} className="text-xs text-primary hover:underline mt-1 block truncate">{member.email}</a>
 
                   {/* Assignments / Roles */}
                   {member.assignments && member.assignments.length > 0 ? (
@@ -332,7 +371,7 @@ export default function TeamPage() {
                       <Select value={newRole.role} onValueChange={v => setNewRole(p => ({ ...p, role: v }))}>
                         <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                          {isSuperAdmin && <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>}
                           <SelectItem value="ED">ED</SelectItem>
                           <SelectItem value="HOD">HOD</SelectItem>
                           <SelectItem value="MANAGER">Manager</SelectItem>

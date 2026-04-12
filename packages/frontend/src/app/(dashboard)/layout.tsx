@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuthStore } from "@/store/auth-store";
 import {
   LayoutDashboard, ListTodo, MessageSquare, Users, Layers,
-  Settings, LogOut, Menu, X, Building2, ClipboardCheck, Activity,
+  Settings, LogOut, Menu, X, Building2, ClipboardCheck, Activity, ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
@@ -117,7 +117,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{user.role} - {user.department?.name || "No Dept"}</p>
+                {user.role === "SUPER_ADMIN" ? (
+                  <p className="text-xs text-red-600 font-semibold flex items-center gap-1 truncate">
+                    <ShieldCheck className="h-3 w-3" /> Super Admin
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground truncate">{user.role} - {user.department?.name || "No Dept"}</p>
+                )}
               </div>
             </div>
             <Button variant="outline" size="sm" className="w-full" onClick={logout}>

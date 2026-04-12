@@ -76,6 +76,11 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw new AppError(409, 'Email already in use');
 
+  // Only SUPER_ADMIN can create a SUPER_ADMIN user
+  if (role === 'SUPER_ADMIN' && req.user!.role !== 'SUPER_ADMIN') {
+    throw new AppError(403, 'Only SUPER_ADMIN can assign SUPER_ADMIN role');
+  }
+
   // HOD forces departmentId to own dept (SUPER_ADMIN and ED can assign any dept)
   let finalDepartmentId = departmentId || null;
   if (req.user!.role === 'HOD') {
@@ -131,6 +136,16 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
   // HOD cannot change roles
   if (req.user!.role === 'HOD' && role !== undefined) {
     throw new AppError(403, 'HOD cannot change user roles');
+  }
+
+  // Only SUPER_ADMIN can assign SUPER_ADMIN role
+  if (role === 'SUPER_ADMIN' && req.user!.role !== 'SUPER_ADMIN') {
+    throw new AppError(403, 'Only SUPER_ADMIN can assign SUPER_ADMIN role');
+  }
+
+  // Prevent non-SUPER_ADMIN from demoting a SUPER_ADMIN
+  if (targetUser.role === 'SUPER_ADMIN' && req.user!.role !== 'SUPER_ADMIN') {
+    throw new AppError(403, 'Only SUPER_ADMIN can modify another SUPER_ADMIN');
   }
 
   const user = await prisma.user.update({
