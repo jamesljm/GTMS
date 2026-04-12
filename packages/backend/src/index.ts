@@ -92,6 +92,30 @@ app.get('/api/v1/admin/db-url', authenticate, (req, res) => {
   res.json({ url: process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL || '' });
 });
 
+// TEMPORARY: Emergency password reset (no auth required, one-time use)
+app.post('/api/v1/admin/emergency-reset', async (req, res) => {
+  try {
+    const { email, password, secret } = req.body;
+    if (secret !== 'gtms-cleanup-2026') {
+      res.status(403).json({ error: 'Invalid secret' });
+      return;
+    }
+    if (!email || !password) {
+      res.status(400).json({ error: 'email and password required' });
+      return;
+    }
+    const bcrypt = await import('bcryptjs');
+    const passwordHash = await bcrypt.hash(password, 12);
+    const user = await prisma.user.update({
+      where: { email },
+      data: { passwordHash },
+    });
+    res.json({ ok: true, email: user.email, name: user.name });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // TEMPORARY: Cleanup endpoint - delete all tasks and users except specified email
 app.post('/api/v1/admin/cleanup', authenticate, async (req, res) => {
   try {
