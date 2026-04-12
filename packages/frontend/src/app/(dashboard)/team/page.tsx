@@ -2,20 +2,23 @@
 
 import { useTeamSummary } from "@/hooks/use-dashboard";
 import { useTasksByAssignee } from "@/hooks/use-tasks";
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from "@/hooks/use-workstreams";
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword } from "@/hooks/use-workstreams";
 import { useDepartments } from "@/hooks/use-departments";
 import { useCreateAssignment, useDeleteAssignment } from "@/hooks/use-assignments";
 import { useAuthStore } from "@/store/auth-store";
-import { canManageUsers } from "@/lib/permissions";
+import { canManageUsers, isSuperAdminOrED } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TaskCard } from "@/components/task-card";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
 import { cn } from "@/lib/utils";
 import { useState, useCallback } from "react";
-import { Plus, Mail, Pencil, Trash2, X, Check, UserPlus, Star } from "lucide-react";
+import { Plus, Mail, Pencil, Trash2, X, Check, UserPlus, Star, KeyRound, Copy } from "lucide-react";
+import { toast } from "sonner";
 
 const avatarColors = [
   "bg-blue-500", "bg-green-500", "bg-purple-500", "bg-orange-500",
@@ -31,7 +34,8 @@ function getAvatarColor(name: string) {
 export default function TeamPage() {
   const { user: currentUser } = useAuthStore();
   const isManager = currentUser ? canManageUsers(currentUser) : false;
-  const isED = currentUser?.role === "ED";
+  const isED = currentUser ? isSuperAdminOrED(currentUser) : false;
+  const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
   const { data: teamSummary } = useTeamSummary();
   const { data: tasksByAssignee } = useTasksByAssignee();
   const { data: allUsers } = useUsers();
@@ -39,6 +43,7 @@ export default function TeamPage() {
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const resetPassword = useResetPassword();
   const createAssignment = useCreateAssignment();
   const deleteAssignment = useDeleteAssignment();
 
@@ -50,6 +55,14 @@ export default function TeamPage() {
   const [newUser, setNewUser] = useState({ name: "", email: "", role: "STAFF", position: "", departmentId: "" });
   const [addingRoleFor, setAddingRoleFor] = useState<string | null>(null);
   const [newRole, setNewRole] = useState({ departmentId: "", role: "STAFF", position: "" });
+
+  // Confirm dialog state
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void }>({ open: false, title: "", description: "", onConfirm: () => {} });
+
+  // Reset password dialog state
+  const [resetPwState, setResetPwState] = useState<{ open: boolean; userId: string; userName: string; newPassword: string; generatedPassword: string }>({
+    open: false, userId: "", userName: "", newPassword: "", generatedPassword: "",
+  });
 
   const handleSelectTask = useCallback((taskId: string) => {
     setSelectedTaskId(taskId);
@@ -77,9 +90,16 @@ export default function TeamPage() {
     setShowAddUser(false);
   };
 
-  const handleDeleteUser = async (id: string) => {
-    if (!confirm("Deactivate this user? Their tasks will remain.")) return;
-    await deleteUser.mutateAsync(id);
+  const handleDeleteUser = (id: string) => {
+    setConfirmState({
+      open: true,
+      title: "Deactivate User",
+      description: "Deactivate this user? Their tasks will remain.",
+      onConfirm: async () => {
+        await deleteUser.mutateAsync(id);
+        setConfirmState(s => ({ ...s, open: false }));
+      },
+    });
   };
 
   const handleAddAssignment = async (userId: string) => {
@@ -89,9 +109,37 @@ export default function TeamPage() {
     setNewRole({ departmentId: "", role: "STAFF", position: "" });
   };
 
-  const handleDeleteAssignment = async (userId: string, assignmentId: string) => {
-    if (!confirm("Remove this role assignment?")) return;
-    await deleteAssignment.mutateAsync({ userId, id: assignmentId });
+  const handleDeleteAssignment = (userId: string, assignmentId: string) => {
+    setConfirmState({
+      open: true,
+      title: "Remove Role",
+      description: "Remove this role assignment?",
+      onConfirm: async () => {
+        await deleteAssignment.mutateAsync({ userId, id: assignmentId });
+        setConfirmState(s => ({ ...s, open: false }));
+      },
+    });
+  };
+
+  const openResetPassword = (member: any) => {
+    setResetPwState({ open: true, userId: member.id, userName: member.name, newPassword: "", generatedPassword: "" });
+  };
+
+  const handleResetPassword = async () => {
+    try {
+      const result = await resetPassword.mutateAsync({
+        userId: resetPwState.userId,
+        ...(resetPwState.newPassword ? { newPassword: resetPwState.newPassword } : {}),
+      });
+      if (result.temporaryPassword) {
+        setResetPwState(s => ({ ...s, generatedPassword: result.temporaryPassword }));
+      } else {
+        toast.success("Password reset successfully");
+        setResetPwState(s => ({ ...s, open: false }));
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to reset password");
+    }
   };
 
   // Use allUsers (which now includes assignments) for display, merge task counts from teamSummary
@@ -126,6 +174,7 @@ export default function TeamPage() {
               <Select value={newUser.role} onValueChange={v => setNewUser(p => ({ ...p, role: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                   <SelectItem value="ED">ED</SelectItem>
                   <SelectItem value="HOD">HOD</SelectItem>
                   <SelectItem value="MANAGER">Manager</SelectItem>
@@ -181,6 +230,7 @@ export default function TeamPage() {
                   <Select value={editForm.role} onValueChange={v => setEditForm((p: any) => ({ ...p, role: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                       <SelectItem value="ED">ED</SelectItem>
                       <SelectItem value="HOD">HOD</SelectItem>
                       <SelectItem value="MANAGER">Manager</SelectItem>
@@ -214,6 +264,11 @@ export default function TeamPage() {
                       <p className="text-xs text-muted-foreground">{member.position} · {member.department || member.dept?.name || "No Dept"}</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
+                      {isSuperAdmin && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7" title="Reset Password" onClick={(e) => { e.stopPropagation(); openResetPassword(member); }}>
+                          <KeyRound className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       {isManager && (
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); startEdit(member); }}>
                           <Pencil className="h-3.5 w-3.5" />
@@ -246,7 +301,7 @@ export default function TeamPage() {
                           )}
                         >
                           {a.isPrimary && <Star className="h-2.5 w-2.5 fill-current" />}
-                          {a.role} · {a.position || "—"} · {a.department?.name || "—"}
+                          {a.role} · {a.position || "\u2014"} · {a.department?.name || "\u2014"}
                           {isED && (
                             <button
                               className="ml-0.5 hover:text-destructive"
@@ -277,6 +332,7 @@ export default function TeamPage() {
                       <Select value={newRole.role} onValueChange={v => setNewRole(p => ({ ...p, role: v }))}>
                         <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                           <SelectItem value="ED">ED</SelectItem>
                           <SelectItem value="HOD">HOD</SelectItem>
                           <SelectItem value="MANAGER">Manager</SelectItem>
@@ -343,6 +399,61 @@ export default function TeamPage() {
         open={!!selectedTaskId}
         onClose={handleClosePanel}
       />
+
+      {/* Confirm dialog */}
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        description={confirmState.description}
+        destructive
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState(s => ({ ...s, open: false }))}
+      />
+
+      {/* Reset password dialog */}
+      <Dialog open={resetPwState.open} onOpenChange={(open) => { if (!open) setResetPwState(s => ({ ...s, open: false, generatedPassword: "" })); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Reset password for {resetPwState.userName}. Leave blank to auto-generate.
+            </DialogDescription>
+          </DialogHeader>
+          {resetPwState.generatedPassword ? (
+            <div className="space-y-3">
+              <p className="text-sm">New password generated:</p>
+              <div className="flex items-center gap-2 bg-muted p-3 rounded-md">
+                <code className="flex-1 font-mono text-sm">{resetPwState.generatedPassword}</code>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { navigator.clipboard.writeText(resetPwState.generatedPassword); toast.success("Copied to clipboard"); }}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Share this password with the user securely. It won&apos;t be shown again.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <Input
+                type="password"
+                placeholder="New password (min 8 chars) or leave blank"
+                value={resetPwState.newPassword}
+                onChange={e => setResetPwState(s => ({ ...s, newPassword: e.target.value }))}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            {resetPwState.generatedPassword ? (
+              <Button onClick={() => setResetPwState(s => ({ ...s, open: false, generatedPassword: "" }))}>Done</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setResetPwState(s => ({ ...s, open: false }))}>Cancel</Button>
+                <Button onClick={handleResetPassword} disabled={resetPassword.isPending}>
+                  {resetPassword.isPending ? "Resetting..." : "Reset Password"}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

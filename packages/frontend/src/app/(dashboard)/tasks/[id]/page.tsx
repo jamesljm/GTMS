@@ -12,6 +12,7 @@ import { PriorityBadge } from "@/components/priority-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { WorkstreamBadge } from "@/components/workstream-badge";
 import { Separator } from "@/components/ui/separator";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { api } from "@/lib/api";
@@ -28,6 +29,7 @@ export default function TaskDetailPage() {
   const queryClient = useQueryClient();
 
   const [noteContent, setNoteContent] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const addNote = useMutation({
     mutationFn: (data: { taskId: string; content: string; type: string }) =>
@@ -56,10 +58,8 @@ export default function TaskDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (confirm("Delete this task?")) {
-      await deleteTask.mutateAsync(task.id);
-      router.push("/tasks");
-    }
+    await deleteTask.mutateAsync(task.id);
+    router.push("/tasks");
   };
 
   return (
@@ -82,7 +82,7 @@ export default function TaskDetailPage() {
                 <span className="text-xs text-muted-foreground">{task.type}</span>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={handleDelete}>
+            <Button variant="ghost" size="icon" onClick={() => setShowDeleteConfirm(true)}>
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           </div>
@@ -185,6 +185,16 @@ export default function TaskDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete Task"
+        description="Are you sure you want to delete this task? This action cannot be undone."
+        destructive
+        confirmLabel="Delete"
+        onConfirm={() => { setShowDeleteConfirm(false); handleDelete(); }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
 import { authorize } from '../middleware/auth';
 import { getVisibleTaskFilter } from '../middleware/rbac';
+import { AppError } from '../middleware/error';
 
 const router = Router();
 
@@ -40,21 +41,15 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
     },
   });
 
-  if (!workstream) {
-    res.status(404).json({ error: 'Workstream not found' });
-    return;
-  }
+  if (!workstream) throw new AppError(404, 'Workstream not found');
 
   res.json(workstream);
 }));
 
 // POST / - create workstream (ED only)
-router.post('/', authorize('ED'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
   const { code, name, description, color, sortOrder } = req.body;
-  if (!code || !name) {
-    res.status(400).json({ error: 'code and name are required' });
-    return;
-  }
+  if (!code || !name) throw new AppError(400, 'code and name are required');
 
   const maxSort = await prisma.workstream.aggregate({ _max: { sortOrder: true } });
   const workstream = await prisma.workstream.create({
@@ -71,7 +66,7 @@ router.post('/', authorize('ED'), asyncHandler(async (req: Request, res: Respons
 }));
 
 // PATCH /:id - update workstream (ED only)
-router.patch('/:id', authorize('ED'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
   const { code, name, description, color, sortOrder } = req.body;
   const workstream = await prisma.workstream.update({
     where: { id: req.params.id },
@@ -88,12 +83,9 @@ router.patch('/:id', authorize('ED'), asyncHandler(async (req: Request, res: Res
 }));
 
 // DELETE /:id - delete workstream (ED only, only if no tasks)
-router.delete('/:id', authorize('ED'), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
   const count = await prisma.task.count({ where: { workstreamId: req.params.id } });
-  if (count > 0) {
-    res.status(400).json({ error: `Cannot delete workstream with ${count} tasks. Reassign tasks first.` });
-    return;
-  }
+  if (count > 0) throw new AppError(400, `Cannot delete workstream with ${count} tasks. Reassign tasks first.`);
 
   await prisma.workstream.delete({ where: { id: req.params.id } });
   res.json({ ok: true });

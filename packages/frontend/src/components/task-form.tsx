@@ -32,7 +32,7 @@ export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
   // Filter assignee list by role
   const filteredUsers = users?.filter((u: any) => {
     if (!currentUser) return true;
-    if (currentUser.role === 'ED') return true;
+    if (currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'ED') return true;
     if (currentUser.role === 'STAFF') return u.id === currentUser.id;
     // HOD/MANAGER: same department only
     if (currentUser.departmentId) return u.departmentId === currentUser.departmentId;

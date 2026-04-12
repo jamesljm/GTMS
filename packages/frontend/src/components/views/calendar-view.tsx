@@ -1,6 +1,6 @@
 "use client";
 
-import { format, set } from "date-fns";
+import { format } from "date-fns";
 import { useCalendar, CalendarMode } from "@/hooks/use-calendar";
 import { CalendarTaskPill } from "./calendar-task-pill";
 import { TaskCard } from "@/components/task-card";
@@ -17,7 +17,6 @@ interface CalendarViewProps {
 }
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 export function CalendarView({ tasks, isLoading, selectedTaskId, onSelectTask }: CalendarViewProps) {
   const {
@@ -154,9 +153,10 @@ export function CalendarView({ tasks, isLoading, selectedTaskId, onSelectTask }:
         const dayTasks = getTasksForDate(currentDate);
         return (
           <div className="border rounded-lg overflow-hidden">
-            {/* All-day section */}
-            <div className="border-b p-3 bg-muted/30">
-              <span className="text-xs font-medium text-muted-foreground">All Day ({dayTasks.length} tasks)</span>
+            <div className="p-3 bg-muted/30">
+              <span className="text-xs font-medium text-muted-foreground">
+                {format(currentDate, "EEEE, d MMMM yyyy")} ({dayTasks.length} tasks)
+              </span>
               <div className="space-y-1.5 mt-2">
                 {dayTasks.length === 0 && (
                   <p className="text-sm text-muted-foreground">No tasks due on this day</p>
@@ -171,17 +171,6 @@ export function CalendarView({ tasks, isLoading, selectedTaskId, onSelectTask }:
                   />
                 ))}
               </div>
-            </div>
-            {/* Hour grid */}
-            <div className="relative max-h-[400px] overflow-y-auto">
-              {HOURS.map(h => (
-                <div key={h} className="flex border-b" style={{ height: 40 }}>
-                  <span className="w-16 text-[10px] text-muted-foreground text-right pr-2 pt-1 shrink-0">
-                    {format(set(new Date(), { hours: h, minutes: 0 }), "ha")}
-                  </span>
-                  <div className="flex-1 border-l bg-background" />
-                </div>
-              ))}
             </div>
           </div>
         );

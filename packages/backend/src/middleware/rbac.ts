@@ -2,7 +2,7 @@ import { prisma } from '../prisma';
 import { AuthUser } from './auth';
 
 export async function getVisibleTaskFilter(user: AuthUser): Promise<any> {
-  if (user.role === 'ED') return {};
+  if (user.role === 'SUPER_ADMIN' || user.role === 'ED') return {};
 
   if (user.role === 'HOD' || user.role === 'MANAGER') {
     if (!user.departmentId) {
@@ -31,7 +31,7 @@ export async function getVisibleTaskFilter(user: AuthUser): Promise<any> {
 }
 
 export async function canEditTask(user: AuthUser, task: { assigneeId: string | null; createdById: string }): Promise<boolean> {
-  if (user.role === 'ED') return true;
+  if (user.role === 'SUPER_ADMIN' || user.role === 'ED') return true;
   if (task.createdById === user.id || task.assigneeId === user.id) return true;
 
   if ((user.role === 'HOD' || user.role === 'MANAGER') && task.assigneeId && user.departmentId) {
@@ -46,5 +46,5 @@ export async function canEditTask(user: AuthUser, task: { assigneeId: string | n
 }
 
 export function canManageUsers(user: AuthUser): boolean {
-  return user.role === 'ED' || user.role === 'HOD';
+  return user.role === 'SUPER_ADMIN' || user.role === 'ED' || user.role === 'HOD';
 }

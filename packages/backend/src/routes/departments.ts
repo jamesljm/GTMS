@@ -47,7 +47,7 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // POST / - create (ED only)
-router.post('/', authorize('ED'), validate(createDepartmentSchema), asyncHandler(async (req: Request, res: Response) => {
+router.post('/', authorize('SUPER_ADMIN', 'ED'), validate(createDepartmentSchema), asyncHandler(async (req: Request, res: Response) => {
   const dept = await prisma.department.create({
     data: {
       name: req.body.name,
@@ -65,7 +65,7 @@ router.post('/', authorize('ED'), validate(createDepartmentSchema), asyncHandler
 }));
 
 // PATCH /:id - update (ED only)
-router.patch('/:id', authorize('ED'), validate(updateDepartmentSchema), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id', authorize('SUPER_ADMIN', 'ED'), validate(updateDepartmentSchema), asyncHandler(async (req: Request, res: Response) => {
   const existing = await prisma.department.findUnique({ where: { id: req.params.id } });
   if (!existing) throw new AppError(404, 'Department not found');
 
@@ -87,7 +87,7 @@ router.patch('/:id', authorize('ED'), validate(updateDepartmentSchema), asyncHan
 }));
 
 // DELETE /:id - delete (ED only, no members)
-router.delete('/:id', authorize('ED'), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
   const count = await prisma.user.count({ where: { departmentId: req.params.id } });
   if (count > 0) {
     throw new AppError(400, `Cannot delete department with ${count} members. Reassign them first.`);

@@ -3,6 +3,8 @@ import { config } from '../config';
 import { prisma } from '../prisma';
 import { createNotification } from '../routes/notifications';
 import { createAuditLog } from '../routes/audit';
+import { getVisibleTaskFilter, canEditTask } from '../middleware/rbac';
+import { AuthUser } from '../middleware/auth';
 
 const anthropic = config.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: config.ANTHROPIC_API_KEY })
@@ -104,7 +106,7 @@ const tools: Anthropic.Tool[] = [
   },
 ];
 
-async function executeTool(name: string, input: any, userId: string): Promise<any> {
+async function executeTool(name: string, input: any, userId: string, user?: AuthUser): Promise<any> {
   switch (name) {
     case 'create_task': {
       let workstreamId = null;
@@ -143,10 +145,10 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
       if (acceptanceStatus === 'Pending' && assigneeId) {
         await prisma.taskProposal.create({
           data: { taskId: task.id, proposerId: userId, action: 'PROPOSED', proposedTitle: input.title, proposedDescription: input.description },
-        }).catch(() => {});
-        await createNotification(assigneeId, 'TASK_ASSIGNED', 'New task assigned', `You have been assigned: ${input.title}`, task.id).catch(() => {});
+        }).catch(err => console.error('AI chat background task failed:', err.message));
+        await createNotification(assigneeId, 'TASK_ASSIGNED', 'New task assigned', `You have been assigned: ${input.title}`, task.id).catch(err => console.error('AI chat background task failed:', err.message));
       }
-      await createAuditLog(userId, 'task.created', task.id, { title: input.title, source: 'Chat' }).catch(() => {});
+      await createAuditLog(userId, 'task.created', task.id, { title: input.title, source: 'Chat' }).catch(err => console.error('AI chat background task failed:', err.message));
 
       return { action: 'created', task: { id: task.id, title: task.title, priority: task.priority, workstream: task.workstream?.code, assignee: task.assignee?.name, dueDate: task.dueDate, acceptanceStatus } };
     }
@@ -154,6 +156,12 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
     case 'update_task': {
       const existing = await prisma.task.findUnique({ where: { id: input.taskId } });
       if (!existing) return { error: 'Task not found' };
+
+      // RBAC check
+      if (user) {
+        const allowed = await canEditTask(user, existing);
+        if (!allowed) return { error: 'You do not have permission to edit this task' };
+      }
 
       const data: any = {};
       if (input.title) data.title = input.title;
@@ -183,12 +191,12 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
 
       // Audit & notifications
       if (input.status === 'Done' && existing.status !== 'Done') {
-        await createAuditLog(userId, 'task.completed', task.id, { title: task.title }).catch(() => {});
+        await createAuditLog(userId, 'task.completed', task.id, { title: task.title }).catch(err => console.error('AI chat background task failed:', err.message));
         if (existing.createdById !== userId) {
-          await createNotification(existing.createdById, 'TASK_COMPLETED', 'Task completed', `Task completed: ${task.title}`, task.id).catch(() => {});
+          await createNotification(existing.createdById, 'TASK_COMPLETED', 'Task completed', `Task completed: ${task.title}`, task.id).catch(err => console.error('AI chat background task failed:', err.message));
         }
       } else {
-        await createAuditLog(userId, 'task.updated', task.id, data).catch(() => {});
+        await createAuditLog(userId, 'task.updated', task.id, data).catch(err => console.error('AI chat background task failed:', err.message));
       }
 
       return { action: 'updated', task: { id: task.id, title: task.title, status: task.status, priority: task.priority } };
@@ -196,6 +204,14 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
 
     case 'query_tasks': {
       const where: any = { status: { notIn: ['Done', 'Cancelled'] } };
+
+      // Apply RBAC filter
+      if (user) {
+        const rbacFilter = await getVisibleTaskFilter(user);
+        if (Object.keys(rbacFilter).length > 0) {
+          where.AND = [rbacFilter];
+        }
+      }
       if (input.search) {
         where.OR = [
           { title: { contains: input.search, mode: 'insensitive' } },
@@ -232,6 +248,13 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
     }
 
     case 'add_note': {
+      // Verify access to task
+      if (user) {
+        const rbacFilter = await getVisibleTaskFilter(user);
+        const task = await prisma.task.findFirst({ where: { AND: [{ id: input.taskId }, rbacFilter] } });
+        if (!task) return { error: 'Task not found or no access' };
+      }
+
       const note = await prisma.note.create({
         data: {
           taskId: input.taskId,
@@ -246,12 +269,18 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
     case 'create_subtask': {
       let assigneeId = null;
       if (input.assigneeEmail) {
-        const user = await prisma.user.findUnique({ where: { email: input.assigneeEmail } });
-        assigneeId = user?.id || null;
+        const assignee = await prisma.user.findUnique({ where: { email: input.assigneeEmail } });
+        assigneeId = assignee?.id || null;
       }
 
       const parent = await prisma.task.findUnique({ where: { id: input.parentId } });
       if (!parent) return { error: 'Parent task not found' };
+
+      // Check access to parent task
+      if (user) {
+        const allowed = await canEditTask(user, parent);
+        if (!allowed) return { error: 'You do not have permission to add subtasks to this task' };
+      }
 
       const subtask = await prisma.task.create({
         data: {
@@ -271,6 +300,17 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
     }
 
     case 'bulk_update': {
+      // Filter to only tasks the user can edit
+      let taskIds = input.taskIds;
+      if (user) {
+        const rbacFilter = await getVisibleTaskFilter(user);
+        const accessibleTasks = await prisma.task.findMany({
+          where: { AND: [{ id: { in: input.taskIds } }, rbacFilter] },
+          select: { id: true },
+        });
+        taskIds = accessibleTasks.map((t: any) => t.id);
+      }
+
       const data: any = {};
       if (input.status) {
         data.status = input.status;
@@ -279,7 +319,7 @@ async function executeTool(name: string, input: any, userId: string): Promise<an
       if (input.priority) data.priority = input.priority;
 
       const result = await prisma.task.updateMany({
-        where: { id: { in: input.taskIds } },
+        where: { id: { in: taskIds } },
         data,
       });
       return { action: 'bulk_updated', count: result.count, status: input.status, priority: input.priority };
@@ -343,6 +383,7 @@ export async function processChat(
   message: string,
   history: { role: string; content: string }[],
   userId: string,
+  user?: AuthUser,
 ): Promise<ChatResult> {
   if (!anthropic) {
     return {
@@ -380,7 +421,7 @@ export async function processChat(
 
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const block of toolUseBlocks) {
-      const result = await executeTool(block.name, block.input, userId);
+      const result = await executeTool(block.name, block.input, userId, user);
       actions.push({ tool: block.name, input: block.input, result });
       toolCallLog.push({ tool: block.name, input: block.input });
       toolResults.push({

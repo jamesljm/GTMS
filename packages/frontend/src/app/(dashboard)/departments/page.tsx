@@ -9,7 +9,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Plus, Pencil, Trash2, X, Check, Users, Crown, Star } from "lucide-react";
+import { toast } from "sonner";
 
 export default function DepartmentsPage() {
   const { user } = useAuthStore();
@@ -26,6 +28,7 @@ export default function DepartmentsPage() {
   const [editForm, setEditForm] = useState<any>({});
   const [showAdd, setShowAdd] = useState(false);
   const [newDept, setNewDept] = useState({ name: "", code: "", color: "#6366f1", description: "", headId: "" });
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void }>({ open: false, title: "", description: "", onConfirm: () => {} });
 
   const startEdit = (dept: any) => {
     setEditingDept(dept.id);
@@ -64,13 +67,21 @@ export default function DepartmentsPage() {
     setShowAdd(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this department? Only works if no members are assigned.")) return;
-    try {
-      await deleteDepartment.mutateAsync(id);
-    } catch (err: any) {
-      alert(err?.response?.data?.error || "Cannot delete department with members");
-    }
+  const handleDelete = (id: string) => {
+    setConfirmState({
+      open: true,
+      title: "Delete Department",
+      description: "Delete this department? Only works if no members are assigned.",
+      onConfirm: async () => {
+        try {
+          await deleteDepartment.mutateAsync(id);
+          setConfirmState(s => ({ ...s, open: false }));
+        } catch (err: any) {
+          setConfirmState(s => ({ ...s, open: false }));
+          toast.error(err?.response?.data?.error || "Cannot delete department with members");
+        }
+      },
+    });
   };
 
   if (isLoading) {
@@ -203,6 +214,15 @@ export default function DepartmentsPage() {
       {expandedDept && (
         <DepartmentMembers deptId={expandedDept} />
       )}
+
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        description={confirmState.description}
+        destructive
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState(s => ({ ...s, open: false }))}
+      />
     </div>
   );
 }

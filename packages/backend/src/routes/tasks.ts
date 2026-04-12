@@ -189,7 +189,9 @@ router.get('/by-assignee', asyncHandler(async (req: Request, res: Response) => {
   const user = req.user!;
 
   let userWhere: any = { isActive: true };
-  if (user.role === 'HOD' || user.role === 'MANAGER') {
+  if (user.role === 'SUPER_ADMIN' || user.role === 'ED') {
+    // sees all users
+  } else if (user.role === 'HOD' || user.role === 'MANAGER') {
     if (user.departmentId) {
       userWhere = { isActive: true, departmentId: user.departmentId };
     } else {
@@ -242,6 +244,11 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // GET /:id/proposals - negotiation history
 router.get('/:id/proposals', asyncHandler(async (req: Request, res: Response) => {
+  // RBAC: verify user has access to the task
+  const rbacFilter = await getVisibleTaskFilter(req.user!);
+  const task = await prisma.task.findFirst({ where: { AND: [{ id: req.params.id }, rbacFilter] } });
+  if (!task) throw new AppError(404, 'Task not found');
+
   const proposals = await prisma.taskProposal.findMany({
     where: { taskId: req.params.id },
     include: { proposer: { select: { id: true, name: true, email: true } } },
@@ -300,14 +307,14 @@ router.post('/', validate(createTaskSchema), asyncHandler(async (req: Request, r
       'New task assigned',
       `You have been assigned a new task: ${data.title}`,
       task.id,
-    ).catch(() => {}); // non-critical
+    ).catch(err => console.error('Background task failed:', err.message)); // non-critical
   }
 
   // Audit log
   await createAuditLog(userId, 'task.created', task.id, {
     title: data.title,
     assigneeId: data.assigneeId,
-  }).catch(() => {});
+  }).catch(err => console.error('Background task failed:', err.message));
 
   res.status(201).json(task);
 }));
@@ -347,10 +354,10 @@ router.post('/:id/accept', asyncHandler(async (req: Request, res: Response) => {
       'Task accepted',
       `${req.user!.name} accepted task: ${updated.title}`,
       task.id,
-    ).catch(() => {});
+    ).catch(err => console.error('Background task failed:', err.message));
   }
 
-  await createAuditLog(userId, 'task.accepted', task.id).catch(() => {});
+  await createAuditLog(userId, 'task.accepted', task.id).catch(err => console.error('Background task failed:', err.message));
 
   res.json(updated);
 }));
@@ -387,9 +394,9 @@ router.post('/:id/request-changes', validate(requestChangesSchema), asyncHandler
     'Changes requested',
     `${req.user!.name} requested changes on task: ${task.title}`,
     task.id,
-  ).catch(() => {});
+  ).catch(err => console.error('Background task failed:', err.message));
 
-  await createAuditLog(userId, 'task.changes_requested', task.id, { comment: req.body.comment }).catch(() => {});
+  await createAuditLog(userId, 'task.changes_requested', task.id, { comment: req.body.comment }).catch(err => console.error('Background task failed:', err.message));
 
   res.json(updated);
 }));
@@ -441,9 +448,9 @@ router.post('/:id/repropose', validate(reproposeSchema), asyncHandler(async (req
       'Counter-proposal',
       `${req.user!.name} counter-proposed task: ${task.title}`,
       task.id,
-    ).catch(() => {});
+    ).catch(err => console.error('Background task failed:', err.message));
 
-    await createAuditLog(userId, 'task.reproposed', task.id, { proposedTitle, proposedDescription, comment }).catch(() => {});
+    await createAuditLog(userId, 'task.reproposed', task.id, { proposedTitle, proposedDescription, comment }).catch(err => console.error('Background task failed:', err.message));
 
   } else if (task.createdById === userId && task.acceptanceStatus === 'Changes Requested') {
     // Initiator re-proposing after changes requested
@@ -475,10 +482,10 @@ router.post('/:id/repropose', validate(reproposeSchema), asyncHandler(async (req
         'Task re-proposed',
         `${req.user!.name} re-proposed task: ${proposedTitle || task.title}`,
         task.id,
-      ).catch(() => {});
+      ).catch(err => console.error('Background task failed:', err.message));
     }
 
-    await createAuditLog(userId, 'task.reproposed', task.id, { proposedTitle, proposedDescription, comment }).catch(() => {});
+    await createAuditLog(userId, 'task.reproposed', task.id, { proposedTitle, proposedDescription, comment }).catch(err => console.error('Background task failed:', err.message));
   } else {
     throw new AppError(403, 'You cannot repropose this task in its current state');
   }
@@ -532,10 +539,10 @@ router.post('/:id/reject-proposal', validate(rejectProposalSchema), asyncHandler
       'Counter-proposal rejected',
       `${req.user!.name} rejected your counter-proposal on task: ${updated.title}. The task has been resent to you.`,
       task.id,
-    ).catch(() => {});
+    ).catch(err => console.error('Background task failed:', err.message));
   }
 
-  await createAuditLog(userId, 'task.proposal_rejected', task.id, { comment: req.body.comment }).catch(() => {});
+  await createAuditLog(userId, 'task.proposal_rejected', task.id, { comment: req.body.comment }).catch(err => console.error('Background task failed:', err.message));
 
   res.json(updated);
 }));
@@ -612,7 +619,7 @@ router.patch('/:id', validate(updateTaskSchema), asyncHandler(async (req: Reques
       'New task assigned',
       `You have been assigned task: ${task.title}`,
       task.id,
-    ).catch(() => {});
+    ).catch(err => console.error('Background task failed:', err.message));
 
     // Create proposal for new assignee
     await prisma.taskProposal.create({
@@ -623,7 +630,7 @@ router.patch('/:id', validate(updateTaskSchema), asyncHandler(async (req: Reques
         proposedTitle: task.title,
         proposedDescription: task.description,
       },
-    }).catch(() => {});
+    }).catch(err => console.error('Background task failed:', err.message));
   }
 
   if (data.status === 'Done' && existing.status !== 'Done') {
@@ -635,15 +642,15 @@ router.patch('/:id', validate(updateTaskSchema), asyncHandler(async (req: Reques
         'Task completed',
         `${req.user!.name} completed task: ${task.title}`,
         task.id,
-      ).catch(() => {});
+      ).catch(err => console.error('Background task failed:', err.message));
     }
 
-    await createAuditLog(userId, 'task.completed', task.id, { title: task.title }).catch(() => {});
+    await createAuditLog(userId, 'task.completed', task.id, { title: task.title }).catch(err => console.error('Background task failed:', err.message));
   }
 
   // Audit log for update
   if (Object.keys(changedFields).length > 0) {
-    await createAuditLog(userId, 'task.updated', task.id, changedFields).catch(() => {});
+    await createAuditLog(userId, 'task.updated', task.id, changedFields).catch(err => console.error('Background task failed:', err.message));
   }
 
   res.json(task);
@@ -654,13 +661,13 @@ router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
   const existing = await prisma.task.findUnique({ where: { id: req.params.id } });
   if (!existing) throw new AppError(404, 'Task not found');
 
-  if (req.user!.role !== 'ED' && existing.createdById !== req.user!.id) {
-    throw new AppError(403, 'Only ED or the task creator can delete tasks');
+  if (req.user!.role !== 'SUPER_ADMIN' && req.user!.role !== 'ED' && existing.createdById !== req.user!.id) {
+    throw new AppError(403, 'Only ED, SUPER_ADMIN, or the task creator can delete tasks');
   }
 
   await prisma.task.delete({ where: { id: req.params.id } });
 
-  await createAuditLog(req.user!.id, 'task.deleted', req.params.id, { title: existing.title }).catch(() => {});
+  await createAuditLog(req.user!.id, 'task.deleted', req.params.id, { title: existing.title }).catch(err => console.error('Background task failed:', err.message));
 
   res.json({ message: 'Task deleted' });
 }));

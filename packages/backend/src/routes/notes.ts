@@ -38,6 +38,11 @@ router.post('/', validate(addNoteSchema), asyncHandler(async (req: Request, res:
 
 // GET /task/:taskId - list notes for a task
 router.get('/task/:taskId', asyncHandler(async (req: Request, res: Response) => {
+  // Verify user has access to the task
+  const rbacFilter = await getVisibleTaskFilter(req.user!);
+  const task = await prisma.task.findFirst({ where: { AND: [{ id: req.params.taskId }, rbacFilter] } });
+  if (!task) throw new AppError(404, 'Task not found');
+
   const notes = await prisma.note.findMany({
     where: { taskId: req.params.taskId },
     include: {

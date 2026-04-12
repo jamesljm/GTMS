@@ -49,8 +49,8 @@ router.post('/message', validate(chatMessageSchema), asyncHandler(async (req: Re
     take: 20,
   });
 
-  // Process with AI
-  const result = await processChat(message, history, userId);
+  // Process with AI (pass user for RBAC)
+  const result = await processChat(message, history, userId, req.user!);
 
   // Save assistant message
   await prisma.chatMessage.create({

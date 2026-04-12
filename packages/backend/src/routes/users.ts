@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { prisma } from '../prisma';
 import { AppError } from '../middleware/error';
 import { canManageUsers } from '../middleware/rbac';
@@ -70,24 +71,19 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const { email, name, role, position, departmentId, password } = req.body;
-  if (!email || !name) {
-    res.status(400).json({ error: 'email and name are required' });
-    return;
-  }
+  if (!email || !name) throw new AppError(400, 'email and name are required');
 
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    res.status(400).json({ error: 'Email already in use' });
-    return;
-  }
+  if (existing) throw new AppError(409, 'Email already in use');
 
-  // HOD forces departmentId to own dept
+  // HOD forces departmentId to own dept (SUPER_ADMIN and ED can assign any dept)
   let finalDepartmentId = departmentId || null;
   if (req.user!.role === 'HOD') {
     finalDepartmentId = req.user!.departmentId;
   }
 
-  const passwordHash = await bcrypt.hash(password || 'Admin1234', 12);
+  const generatedPassword = password || crypto.randomBytes(8).toString('base64url').slice(0, 12);
+  const passwordHash = await bcrypt.hash(generatedPassword, 12);
   const user = await prisma.user.create({
     data: {
       email,
@@ -108,7 +104,10 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     },
   });
 
-  res.status(201).json(user);
+  res.status(201).json({
+    ...user,
+    ...(password ? {} : { temporaryPassword: generatedPassword }),
+  });
 }));
 
 // PATCH /:id - update user

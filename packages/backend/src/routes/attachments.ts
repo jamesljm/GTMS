@@ -59,6 +59,11 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
 
   if (!attachment) throw new AppError(404, 'Attachment not found');
 
+  // Verify user has access to the parent task
+  const rbacFilter = await getVisibleTaskFilter(req.user!);
+  const task = await prisma.task.findFirst({ where: { AND: [{ id: attachment.taskId }, rbacFilter] } });
+  if (!task) throw new AppError(404, 'Attachment not found');
+
   res.set({
     'Content-Type': attachment.mimeType,
     'Content-Length': attachment.size.toString(),
@@ -79,7 +84,7 @@ router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
   if (!attachment) throw new AppError(404, 'Attachment not found');
 
   // Only the uploader or admin can delete
-  if (attachment.uploadedById !== req.user!.id && req.user!.role !== 'ED') {
+  if (attachment.uploadedById !== req.user!.id && req.user!.role !== 'SUPER_ADMIN' && req.user!.role !== 'ED') {
     throw new AppError(403, 'Not authorized to delete this attachment');
   }
 

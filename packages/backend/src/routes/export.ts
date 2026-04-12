@@ -69,8 +69,8 @@ router.get('/tasks', asyncHandler(async (req: Request, res: Response) => {
 
 // GET /api/v1/export/database (ED only)
 router.get('/database', asyncHandler(async (req: Request, res: Response) => {
-  if (req.user!.role !== 'ED') {
-    throw new AppError(403, 'Only ED can export the full database');
+  if (req.user!.role !== 'SUPER_ADMIN' && req.user!.role !== 'ED') {
+    throw new AppError(403, 'Only ED or SUPER_ADMIN can export the full database');
   }
 
   const [tasks, users, departments, workstreams, notes, assignments] = await Promise.all([

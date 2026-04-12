@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input";
 import { TaskCard } from "@/components/task-card";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
 import { useState, useCallback } from "react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import { toast } from "sonner";
 
 export default function WorkstreamsPage() {
   const { user: currentUser } = useAuthStore();
@@ -27,6 +29,7 @@ export default function WorkstreamsPage() {
   const [editForm, setEditForm] = useState<any>({});
   const [showAddWs, setShowAddWs] = useState(false);
   const [newWs, setNewWs] = useState({ code: "", name: "", color: "#6366f1" });
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void }>({ open: false, title: "", description: "", onConfirm: () => {} });
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => {
@@ -63,13 +66,21 @@ export default function WorkstreamsPage() {
     setShowAddWs(false);
   };
 
-  const handleDeleteWs = async (id: string) => {
-    if (!confirm("Delete this workstream? Only works if no tasks are assigned.")) return;
-    try {
-      await deleteWorkstream.mutateAsync(id);
-    } catch (err: any) {
-      alert(err?.response?.data?.error || "Cannot delete workstream with tasks");
-    }
+  const handleDeleteWs = (id: string) => {
+    setConfirmState({
+      open: true,
+      title: "Delete Workstream",
+      description: "Delete this workstream? Only works if no tasks are assigned.",
+      onConfirm: async () => {
+        try {
+          await deleteWorkstream.mutateAsync(id);
+          setConfirmState(s => ({ ...s, open: false }));
+        } catch (err: any) {
+          setConfirmState(s => ({ ...s, open: false }));
+          toast.error(err?.response?.data?.error || "Cannot delete workstream with tasks");
+        }
+      },
+    });
   };
 
   if (isLoading) {
@@ -175,6 +186,15 @@ export default function WorkstreamsPage() {
         taskId={selectedTaskId}
         open={!!selectedTaskId}
         onClose={handleClosePanel}
+      />
+
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        description={confirmState.description}
+        destructive
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState(s => ({ ...s, open: false }))}
       />
     </div>
   );

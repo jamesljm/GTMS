@@ -12,7 +12,7 @@ import { Download, Database, Copy, Check } from "lucide-react";
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
-  const isED = user?.role === "ED";
+  const isED = user?.role === "SUPER_ADMIN" || user?.role === "ED";
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");

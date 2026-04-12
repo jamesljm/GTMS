@@ -41,7 +41,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   }
 
   if (req.query.action) where.action = req.query.action;
-  if (req.query.userId && req.user!.role === 'ED') where.userId = req.query.userId;
+  if (req.query.userId && (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ED')) where.userId = req.query.userId;
   if (req.query.dateFrom || req.query.dateTo) {
     where.createdAt = {};
     if (req.query.dateFrom) where.createdAt.gte = new Date(req.query.dateFrom as string);

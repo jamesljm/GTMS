@@ -64,7 +64,7 @@ function DetailsCell({ details }: { details: string | null }) {
 
 export default function ActivityPage() {
   const { user } = useAuthStore();
-  const isAdmin = user?.role === "ED";
+  const isAdmin = user?.role === "SUPER_ADMIN" || user?.role === "ED";
   const [tab, setTab] = useState<"all" | "mine">(isAdmin ? "all" : "mine");
   const [actionFilter, setActionFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");

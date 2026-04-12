@@ -5,7 +5,8 @@ import { config } from '../config';
 import { prisma } from '../prisma';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validate';
-import { loginSchema, signupSchema, changePasswordSchema } from 'shared';
+import { loginSchema, signupSchema, changePasswordSchema, resetPasswordSchema } from 'shared';
+import crypto from 'crypto';
 import { AppError } from '../middleware/error';
 
 const router = Router();
@@ -183,6 +184,26 @@ router.post('/change-password', authenticate, validate(changePasswordSchema), as
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
 
   res.json({ message: 'Password changed successfully' });
+}));
+
+// POST /reset-password (SUPER_ADMIN only)
+router.post('/reset-password', authenticate, validate(resetPasswordSchema), asyncHandler(async (req: Request, res: Response) => {
+  if (req.user!.role !== 'SUPER_ADMIN') {
+    throw new AppError(403, 'Only SUPER_ADMIN can reset passwords');
+  }
+
+  const { userId, newPassword } = req.body;
+  const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+  if (!targetUser) throw new AppError(404, 'User not found');
+
+  const generatedPassword = newPassword || crypto.randomBytes(8).toString('base64url').slice(0, 12);
+  const passwordHash = await bcrypt.hash(generatedPassword, 12);
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+
+  res.json({
+    message: 'Password reset successfully',
+    ...(newPassword ? {} : { temporaryPassword: generatedPassword }),
+  });
 }));
 
 export default router;

@@ -48,7 +48,7 @@ async function main() {
     { email: 'joseph@geohan.com', name: 'Joseph Lim', role: 'STAFF', position: 'Compliance Officer', department: 'Legal' },
     { email: 'jiva@geohan.com', name: 'Jiva Kumar', role: 'STAFF', position: 'Finance Executive', department: 'Finance' },
     { email: 'athirah@geohan.com', name: 'Athirah Noor', role: 'STAFF', position: 'Finance Executive', department: 'Finance' },
-    { email: 'jiemin@geohan.com', name: 'Jie Min', role: 'MANAGER', position: 'IT & Digitalisation', department: 'IT' },
+    { email: 'jiemin@geohan.com', name: 'Jie Min', role: 'SUPER_ADMIN', position: 'IT & Digitalisation', department: 'IT' },
     { email: 'jinghui@geohan.com', name: 'Jing Hui', role: 'STAFF', position: 'Quantity Surveyor', department: 'Commercial' },
     { email: 'jeremy@geohan.com', name: 'Jeremy Loh', role: 'MANAGER', position: 'Site Manager', department: 'Operations' },
     { email: 'mroh@geohan.com', name: 'Mr Oh', role: 'MANAGER', position: 'Senior Manager', department: 'Operations' },

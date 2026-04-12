@@ -89,3 +89,10 @@ export function useDeleteUser() {
     },
   });
 }
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: (data: { userId: string; newPassword?: string }) =>
+      api.post("/auth/reset-password", data).then(r => r.data),
+  });
+}

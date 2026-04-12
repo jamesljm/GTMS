@@ -85,8 +85,8 @@ app.use('/api/v1/webhooks', webhookRoutes); // No auth for webhooks
 
 // Admin endpoints
 app.get('/api/v1/admin/db-url', authenticate, (req, res) => {
-  if (req.user?.role !== 'ED') {
-    res.status(403).json({ error: 'Only ED can access database URL' });
+  if (req.user?.role !== 'SUPER_ADMIN' && req.user?.role !== 'ED') {
+    res.status(403).json({ error: 'Only ED or SUPER_ADMIN can access database URL' });
     return;
   }
   res.json({ url: process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL || '' });
@@ -111,11 +111,6 @@ async function main() {
 
     app.listen(config.PORT, () => {
       console.log(`GTMS backend running on port ${config.PORT}`);
-
-      // Self-ping keep-alive every 5 minutes
-      setInterval(() => {
-        fetch(`http://localhost:${config.PORT}/health`).catch(() => {});
-      }, 5 * 60 * 1000);
     });
   } catch (err) {
     console.error('Failed to start server:', err);
