@@ -92,6 +92,91 @@ app.get('/api/v1/admin/db-url', authenticate, (req, res) => {
   res.json({ url: process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL || '' });
 });
 
+// TEMPORARY: Cleanup endpoint - delete all tasks and users except specified email
+app.post('/api/v1/admin/cleanup', authenticate, async (req, res) => {
+  try {
+    if (req.user?.role !== 'SUPER_ADMIN' && req.user?.role !== 'ED') {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    const keepEmail = req.body.keepEmail;
+    if (!keepEmail) {
+      res.status(400).json({ error: 'keepEmail is required' });
+      return;
+    }
+
+    // Find user to keep
+    const keepUser = await prisma.user.findUnique({ where: { email: keepEmail } });
+    if (!keepUser) {
+      res.status(404).json({ error: `User ${keepEmail} not found` });
+      return;
+    }
+
+    const results: Record<string, number> = {};
+
+    // 1. Delete all task proposals
+    const proposals = await prisma.taskProposal.deleteMany({});
+    results.taskProposals = proposals.count;
+
+    // 2. Delete all notes
+    const notes = await prisma.note.deleteMany({});
+    results.notes = notes.count;
+
+    // 3. Delete all attachments
+    const attachments = await prisma.attachment.deleteMany({});
+    results.attachments = attachments.count;
+
+    // 4. Delete all notifications
+    const notifications = await prisma.notification.deleteMany({});
+    results.notifications = notifications.count;
+
+    // 5. Delete all audit logs
+    const auditLogs = await prisma.auditLog.deleteMany({});
+    results.auditLogs = auditLogs.count;
+
+    // 6. Delete all reminder logs
+    const reminderLogs = await prisma.reminderLog.deleteMany({});
+    results.reminderLogs = reminderLogs.count;
+
+    // 7. Clear parentId on all tasks (break self-references)
+    await prisma.task.updateMany({ data: { parentId: null } });
+
+    // 8. Delete all tasks
+    const tasks = await prisma.task.deleteMany({});
+    results.tasks = tasks.count;
+
+    // 9. Delete all chat messages and sessions
+    const chatMessages = await prisma.chatMessage.deleteMany({});
+    results.chatMessages = chatMessages.count;
+    const chatSessions = await prisma.chatSession.deleteMany({});
+    results.chatSessions = chatSessions.count;
+
+    // 10. Delete all assignments for users being deleted
+    const assignments = await prisma.userAssignment.deleteMany({
+      where: { userId: { not: keepUser.id } },
+    });
+    results.assignments = assignments.count;
+
+    // 11. Clear department headId references
+    await prisma.department.updateMany({
+      where: { headId: { not: keepUser.id } },
+      data: { headId: null },
+    });
+
+    // 12. Delete all users except keepUser
+    const users = await prisma.user.deleteMany({
+      where: { id: { not: keepUser.id } },
+    });
+    results.usersDeleted = users.count;
+
+    res.json({ ok: true, kept: keepEmail, results });
+  } catch (err: any) {
+    console.error('Cleanup error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Error handler
 app.use(errorHandler);
 
