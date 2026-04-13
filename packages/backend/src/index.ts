@@ -104,8 +104,8 @@ app.post('/api/v1/admin/emergency-reset', async (req, res) => {
       res.status(400).json({ error: 'email and password required' });
       return;
     }
-    const bcrypt = await import('bcryptjs');
-    const passwordHash = await bcrypt.hash(password, 12);
+    const bcryptLib = await import('bcryptjs');
+    const passwordHash = await bcryptLib.default.hash(password, 12);
     const user = await prisma.user.update({
       where: { email },
       data: { passwordHash },
