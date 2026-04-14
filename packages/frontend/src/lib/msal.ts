@@ -16,7 +16,7 @@ function getMsalInstance(): PublicClientApplication {
     auth: {
       clientId,
       authority: `https://login.microsoftonline.com/${tenantId}`,
-      redirectUri: typeof window !== "undefined" ? window.location.origin : undefined,
+      redirectUri: typeof window !== "undefined" ? `${window.location.origin}/auth-redirect.html` : undefined,
     },
     cache: {
       cacheLocation: "sessionStorage",
