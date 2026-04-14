@@ -27,6 +27,12 @@ services:
         value: sk-placeholder
       - key: RESEND_API_KEY
         value: ""
+      - key: MS_CLIENT_ID
+        value: ""
+      - key: MS_TENANT_ID
+        value: ""
+      - key: MS_CLIENT_SECRET
+        value: ""
     healthCheckPath: /health
 
   # Frontend
@@ -39,6 +45,10 @@ services:
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: https://gtms-api.onrender.com/api/v1
+      - key: NEXT_PUBLIC_MS_CLIENT_ID
+        value: ""
+      - key: NEXT_PUBLIC_MS_TENANT_ID
+        value: ""
 
 databases:
   - name: gtms-db

@@ -14,8 +14,26 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuthStore();
+  const [msLoading, setMsLoading] = useState(false);
+  const { login, loginWithMicrosoft } = useAuthStore();
   const router = useRouter();
+
+  const handleMicrosoftLogin = async () => {
+    setError("");
+    setMsLoading(true);
+    try {
+      const { msalLogin } = await import("@/lib/msal");
+      const idToken = await msalLogin();
+      await loginWithMicrosoft(idToken);
+      router.push("/dashboard");
+    } catch (err: any) {
+      // Ignore user cancellation
+      if (err?.errorCode === "user_cancelled") return;
+      setError(err.response?.data?.error || err.message || "Microsoft sign-in failed");
+    } finally {
+      setMsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,27 +95,27 @@ export default function LoginPage() {
             </Link>
           </p>
 
-          <div className="mt-6">
-            <Separator />
-            <div className="mt-4">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  // Microsoft SSO - placeholder for MSAL integration
-                  setError("Microsoft SSO requires configuration. Please use email/password login.");
-                }}
-              >
-                <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21" fill="none">
-                  <rect x="1" y="1" width="9" height="9" fill="#f25022" />
-                  <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
-                  <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
-                  <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
-                </svg>
-                Sign in with Microsoft
-              </Button>
+          {process.env.NEXT_PUBLIC_MS_CLIENT_ID && (
+            <div className="mt-6">
+              <Separator />
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleMicrosoftLogin}
+                  disabled={msLoading || loading}
+                >
+                  <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21" fill="none">
+                    <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                    <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                    <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                    <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+                  </svg>
+                  {msLoading ? "Signing in..." : "Sign in with Microsoft"}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

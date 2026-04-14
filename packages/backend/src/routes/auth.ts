@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import jwksRsa from 'jwks-rsa';
 import { config } from '../config';
 import { prisma } from '../prisma';
 import { authenticate } from '../middleware/auth';
@@ -15,6 +16,25 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => {
     fn(req, res).catch(next);
   };
+}
+
+// JWKS client for Microsoft Entra ID token verification
+const jwksClient = config.MS_TENANT_ID
+  ? jwksRsa({
+      jwksUri: `https://login.microsoftonline.com/${config.MS_TENANT_ID}/discovery/v2.0/keys`,
+      cache: true,
+      rateLimit: true,
+    })
+  : null;
+
+function getSigningKey(kid: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!jwksClient) return reject(new Error('JWKS client not configured'));
+    jwksClient.getSigningKey(kid, (err, key) => {
+      if (err) return reject(err);
+      resolve(key!.getPublicKey());
+    });
+  });
 }
 
 function generateTokens(user: { id: string; email: string; name: string; role: string; departmentId: string | null }) {
@@ -83,40 +103,59 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, r
 router.post('/microsoft', asyncHandler(async (req: Request, res: Response) => {
   const { idToken } = req.body;
   if (!idToken) throw new AppError(400, 'ID token required');
-
-  // In production, validate the ID token with MSAL
-  // For now, decode without verification for development
-  let decoded: any;
-  try {
-    decoded = jwt.decode(idToken);
-    if (!decoded?.email && !decoded?.preferred_username) {
-      throw new Error('No email in token');
-    }
-  } catch {
-    throw new AppError(401, 'Invalid Microsoft ID token');
+  if (!config.MS_CLIENT_ID || !config.MS_TENANT_ID) {
+    throw new AppError(503, 'Microsoft SSO is not configured');
   }
 
-  const email = decoded.email || decoded.preferred_username;
-  const name = decoded.name || email.split('@')[0];
+  // Decode header to get signing key ID
+  const header = jwt.decode(idToken, { complete: true })?.header;
+  if (!header?.kid) throw new AppError(401, 'Invalid Microsoft ID token');
 
-  let user = await prisma.user.findUnique({ where: { email }, include: { dept: { select: { id: true, name: true, code: true } } } });
+  // Verify token signature via JWKS
+  let verified: any;
+  try {
+    const signingKey = await getSigningKey(header.kid);
+    verified = jwt.verify(idToken, signingKey, {
+      algorithms: ['RS256'],
+      audience: config.MS_CLIENT_ID,
+      issuer: [
+        `https://login.microsoftonline.com/${config.MS_TENANT_ID}/v2.0`,
+        `https://sts.windows.net/${config.MS_TENANT_ID}/`,
+      ],
+    });
+  } catch (err: any) {
+    throw new AppError(401, `Microsoft token verification failed: ${err.message}`);
+  }
+
+  const email = verified.email || verified.preferred_username;
+  if (!email) throw new AppError(401, 'No email in Microsoft token');
+  const name = verified.name || email.split('@')[0];
+  const microsoftId = verified.oid || verified.sub;
+
+  // Find by microsoftId first, then by email
+  let user = await prisma.user.findFirst({
+    where: { OR: [{ microsoftId }, { email }] },
+    include: { dept: { select: { id: true, name: true, code: true } } },
+  });
+
   if (!user) {
     // Auto-create user from SSO
-    const passwordHash = await bcrypt.hash(Math.random().toString(36), 12);
+    const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('base64'), 12);
     user = await prisma.user.create({
       data: {
         email,
         name,
         passwordHash,
         role: 'STAFF',
-        microsoftId: decoded.oid || decoded.sub,
+        microsoftId,
       },
       include: { dept: { select: { id: true, name: true, code: true } } },
     });
-  } else if (!user.microsoftId && decoded.oid) {
+  } else if (!user.microsoftId && microsoftId) {
+    // Link microsoftId to existing user found by email
     await prisma.user.update({
       where: { id: user.id },
-      data: { microsoftId: decoded.oid },
+      data: { microsoftId },
     });
   }
 
