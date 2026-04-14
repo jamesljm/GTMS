@@ -15,11 +15,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TaskCard } from "@/components/task-card";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
+import { M365ImportDialog } from "@/components/m365-import-dialog";
 import { FilterBar } from "@/components/views/filter-bar";
 import { filterTasks } from "@/lib/filter-tasks";
 import { cn } from "@/lib/utils";
 import { useState, useCallback } from "react";
-import { Plus, Mail, Pencil, Trash2, X, Check, UserPlus, Star, KeyRound, Copy, Shield, ShieldCheck } from "lucide-react";
+import { Plus, Mail, Pencil, Trash2, X, Check, UserPlus, Star, KeyRound, Copy, Shield, ShieldCheck, CloudDownload } from "lucide-react";
 import { toast } from "sonner";
 
 function RoleBadge({ role }: { role: string }) {
@@ -93,6 +94,9 @@ export default function TeamPage() {
   const [editAssignments, setEditAssignments] = useState<any[]>([]);
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: "", email: "", role: "STAFF", position: "", departmentId: "" });
+
+  // M365 import dialog state
+  const [showM365Import, setShowM365Import] = useState(false);
 
   // Confirm dialog state
   const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void }>({ open: false, title: "", description: "", onConfirm: () => {} });
@@ -251,11 +255,18 @@ export default function TeamPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Team View</h1>
-        {isManager && (
-          <Button size="sm" onClick={() => setShowAddUser(!showAddUser)}>
-            <UserPlus className="h-4 w-4 mr-1" /> Add Member
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {isED && (
+            <Button size="sm" variant="outline" onClick={() => setShowM365Import(true)}>
+              <CloudDownload className="h-4 w-4 mr-1" /> Import from M365
+            </Button>
+          )}
+          {isManager && (
+            <Button size="sm" onClick={() => setShowAddUser(!showAddUser)}>
+              <UserPlus className="h-4 w-4 mr-1" /> Add Member
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Add user form */}
@@ -502,6 +513,9 @@ export default function TeamPage() {
         onConfirm={confirmState.onConfirm}
         onCancel={() => setConfirmState(s => ({ ...s, open: false }))}
       />
+
+      {/* M365 import dialog */}
+      <M365ImportDialog open={showM365Import} onOpenChange={setShowM365Import} />
 
       {/* Reset password dialog */}
       <Dialog open={resetPwState.open} onOpenChange={(open) => { if (!open) setResetPwState(s => ({ ...s, open: false, generatedPassword: "" })); }}>

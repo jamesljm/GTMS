@@ -97,6 +97,30 @@ export function useResetPassword() {
   });
 }
 
+// M365 hooks
+export function useM365Users() {
+  return useQuery({
+    queryKey: ["m365-users"],
+    queryFn: () => api.get("/m365/users").then(r => r.data),
+    enabled: false, // only fetch on manual refetch()
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+}
+
+export function useImportM365Users() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { users: Array<{ microsoftId: string; email: string; displayName: string; jobTitle?: string; mobilePhone?: string }> }) =>
+      api.post("/m365/import", data).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["m365-users"] });
+    },
+  });
+}
+
 // Workstream Members hooks
 export function useWorkstreamMembers(workstreamId: string) {
   return useQuery({
