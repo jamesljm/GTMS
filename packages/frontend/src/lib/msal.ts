@@ -16,7 +16,7 @@ function getMsalInstance(): PublicClientApplication {
     auth: {
       clientId,
       authority: `https://login.microsoftonline.com/${tenantId}`,
-      redirectUri: typeof window !== "undefined" ? `${window.location.origin}/auth-redirect.html` : undefined,
+      redirectUri: typeof window !== "undefined" ? `${window.location.origin}/login` : undefined,
     },
     cache: {
       cacheLocation: "sessionStorage",
@@ -27,17 +27,19 @@ function getMsalInstance(): PublicClientApplication {
   return msalInstance;
 }
 
-export async function msalLogin(): Promise<string> {
+/** Redirect the full page to Microsoft login */
+export async function msalRedirectLogin(): Promise<void> {
   const instance = getMsalInstance();
   await instance.initialize();
-
-  const result = await instance.loginPopup({
+  await instance.loginRedirect({
     scopes: ["openid", "profile", "email"],
   });
+}
 
-  if (!result.idToken) {
-    throw new Error("No ID token received from Microsoft");
-  }
-
-  return result.idToken;
+/** Call on page load to handle the redirect response. Returns idToken if present. */
+export async function handleMsalRedirect(): Promise<string | null> {
+  const instance = getMsalInstance();
+  await instance.initialize();
+  const result = await instance.handleRedirectPromise();
+  return result?.idToken ?? null;
 }

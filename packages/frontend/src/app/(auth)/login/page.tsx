@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/store/auth-store";
@@ -18,19 +18,39 @@ export default function LoginPage() {
   const { login, loginWithMicrosoft } = useAuthStore();
   const router = useRouter();
 
+  // Handle Microsoft redirect response on page load
+  useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_MS_CLIENT_ID) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const { handleMsalRedirect } = await import("@/lib/msal");
+        const idToken = await handleMsalRedirect();
+        if (idToken && !cancelled) {
+          setMsLoading(true);
+          await loginWithMicrosoft(idToken);
+          router.push("/dashboard");
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err.response?.data?.error || err.message || "Microsoft sign-in failed");
+          setMsLoading(false);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loginWithMicrosoft, router]);
+
   const handleMicrosoftLogin = async () => {
     setError("");
     setMsLoading(true);
     try {
-      const { msalLogin } = await import("@/lib/msal");
-      const idToken = await msalLogin();
-      await loginWithMicrosoft(idToken);
-      router.push("/dashboard");
+      const { msalRedirectLogin } = await import("@/lib/msal");
+      await msalRedirectLogin();
+      // Page will redirect — no code runs after this
     } catch (err: any) {
-      // Ignore user cancellation
-      if (err?.errorCode === "user_cancelled") return;
       setError(err.response?.data?.error || err.message || "Microsoft sign-in failed");
-    } finally {
       setMsLoading(false);
     }
   };
