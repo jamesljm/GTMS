@@ -8,12 +8,16 @@ export async function runSeed() {
   const prisma = new PrismaClient();
   try {
     console.log('Clearing all existing data...');
+    await prisma.notification.deleteMany();
+    await prisma.auditLog.deleteMany();
+    await prisma.taskProposal.deleteMany();
     await prisma.userAssignment.deleteMany();
     await prisma.attachment.deleteMany();
     await prisma.note.deleteMany();
     await prisma.chatMessage.deleteMany();
     await prisma.chatSession.deleteMany();
     await prisma.reminderLog.deleteMany();
+    await prisma.workstreamMember.deleteMany();
     await prisma.task.deleteMany();
     await prisma.workstream.deleteMany();
     // Clear department headId before deleting users (FK constraint)
