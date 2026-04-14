@@ -35,7 +35,9 @@ export async function getClientCredentialsToken(): Promise<string> {
   if (!res.ok) {
     const text = await res.text();
     console.error('Failed to get MS token:', res.status, text);
-    throw new AppError(502, 'Failed to authenticate with Microsoft 365');
+    let detail = '';
+    try { detail = ': ' + JSON.parse(text).error_description; } catch { detail = ': ' + text.substring(0, 200); }
+    throw new AppError(502, 'Failed to authenticate with Microsoft 365' + detail);
   }
 
   const data = await res.json() as { access_token: string; expires_in: number };
