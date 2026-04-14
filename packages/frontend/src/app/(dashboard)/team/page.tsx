@@ -108,11 +108,15 @@ export default function TeamPage() {
     setSelectedTaskId(null);
   }, []);
 
+  // Counter for stable unique keys on new assignment rows
+  const [tempIdCounter, setTempIdCounter] = useState(0);
+
   const startEdit = (member: any) => {
     setEditingUser(member.id);
     setEditForm({ name: member.name, email: member.email, position: member.position || "" });
     setEditAssignments(
       (member.assignments || []).map((a: any) => ({
+        _key: a.id,
         id: a.id,
         departmentId: a.departmentId || "",
         role: a.role,
@@ -123,29 +127,48 @@ export default function TeamPage() {
     );
   };
 
+  const addAssignmentRow = () => {
+    const key = `temp-${Date.now()}-${tempIdCounter}`;
+    setTempIdCounter(c => c + 1);
+    setEditAssignments(prev => [...prev, { _key: key, id: null, departmentId: "", role: "STAFF", position: "", isPrimary: false, _action: "new" as const }]);
+  };
+
   const saveEdit = async () => {
     if (!editingUser) return;
-    const member = members.find((m: any) => m.id === editingUser);
-    // Save user fields
-    await updateUser.mutateAsync({ id: editingUser, ...editForm });
-    // Process assignment changes
-    const origIds = new Set<string>((member?.assignments || []).map((a: any) => a.id));
-    for (const a of editAssignments) {
-      if (a._action === "new" && a.departmentId && a.role) {
-        await createAssignment.mutateAsync({ userId: editingUser, departmentId: a.departmentId, role: a.role, position: a.position || undefined, isPrimary: a.isPrimary || undefined });
-      } else if (a._action === "existing" && a.id) {
-        const orig = member?.assignments?.find((o: any) => o.id === a.id);
-        if (orig && (orig.departmentId !== a.departmentId || orig.role !== a.role || (orig.position || "") !== a.position || !!orig.isPrimary !== !!a.isPrimary)) {
-          await updateAssignment.mutateAsync({ userId: editingUser, id: a.id, departmentId: a.departmentId, role: a.role, position: a.position || undefined, isPrimary: a.isPrimary });
+    try {
+      const member = members.find((m: any) => m.id === editingUser);
+      // Save user fields
+      await updateUser.mutateAsync({ id: editingUser, ...editForm });
+      // Process assignment changes
+      const origIds = new Set<string>((member?.assignments || []).map((a: any) => a.id));
+      for (const a of editAssignments) {
+        try {
+          if (a._action === "new" && a.departmentId && a.role) {
+            await createAssignment.mutateAsync({ userId: editingUser, departmentId: a.departmentId, role: a.role, position: a.position || undefined, isPrimary: a.isPrimary || undefined });
+          } else if (a._action === "existing" && a.id) {
+            const orig = member?.assignments?.find((o: any) => o.id === a.id);
+            if (orig && (orig.departmentId !== a.departmentId || orig.role !== a.role || (orig.position || "") !== a.position || !!orig.isPrimary !== !!a.isPrimary)) {
+              await updateAssignment.mutateAsync({ userId: editingUser, id: a.id, departmentId: a.departmentId, role: a.role, position: a.position || undefined, isPrimary: a.isPrimary });
+            }
+            origIds.delete(a.id);
+          }
+        } catch (err: any) {
+          toast.error(`Failed to save assignment: ${err?.response?.data?.error || err?.message || "Unknown error"}`);
         }
-        origIds.delete(a.id);
       }
+      // Delete removed assignments
+      for (const id of origIds) {
+        try {
+          await deleteAssignment.mutateAsync({ userId: editingUser, id });
+        } catch (err: any) {
+          toast.error(`Failed to remove assignment: ${err?.response?.data?.error || err?.message || "Unknown error"}`);
+        }
+      }
+      toast.success("User updated successfully");
+      setEditingUser(null);
+    } catch (err: any) {
+      toast.error(`Failed to save: ${err?.response?.data?.error || err?.message || "Unknown error"}`);
     }
-    // Delete removed assignments
-    for (const id of origIds) {
-      await deleteAssignment.mutateAsync({ userId: editingUser, id });
-    }
-    setEditingUser(null);
   };
 
   const handleAddUser = async () => {
@@ -269,7 +292,7 @@ export default function TeamPage() {
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">Role Assignments</label>
                     {editAssignments.map((a, idx) => (
-                      <div key={a.id || `new-${idx}`} className="flex flex-wrap gap-1.5 items-center">
+                      <div key={a._key} className="flex flex-wrap gap-1.5 items-center">
                         <Select value={a.departmentId || "none"} onValueChange={v => setEditAssignments(prev => prev.map((x, i) => i === idx ? { ...x, departmentId: v === "none" ? "" : v } : x))}>
                           <SelectTrigger className="h-7 text-xs w-[120px]"><SelectValue placeholder="Dept..." /></SelectTrigger>
                           <SelectContent>
@@ -303,8 +326,8 @@ export default function TeamPage() {
                       </div>
                     ))}
                     <button
-                      className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
-                      onClick={() => setEditAssignments(prev => [...prev, { id: null, departmentId: "", role: "STAFF", position: "", isPrimary: false, _action: "new" }])}
+                      className="text-[11px] text-primary hover:underline flex items-center gap-0.5 mt-1"
+                      onClick={addAssignmentRow}
                     >
                       <Plus className="h-3 w-3" /> Add Role
                     </button>
@@ -312,7 +335,7 @@ export default function TeamPage() {
 
                   <div className="flex gap-2">
                     <Button size="sm" onClick={saveEdit} disabled={updateUser.isPending || createAssignment.isPending || updateAssignment.isPending || deleteAssignment.isPending}>
-                      <Check className="h-4 w-4 mr-1" /> Save
+                      <Check className="h-4 w-4 mr-1" /> {(updateUser.isPending || createAssignment.isPending || updateAssignment.isPending || deleteAssignment.isPending) ? "Saving..." : "Save"}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setEditingUser(null)}>
                       <X className="h-4 w-4 mr-1" /> Cancel
