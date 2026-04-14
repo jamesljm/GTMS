@@ -96,6 +96,45 @@ app.get('/api/v1/admin/db-url', authenticate, (req, res) => {
   res.json({ url: process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL || '' });
 });
 
+// Temporary bootstrap endpoint (remove after use)
+app.post('/api/v1/admin/bootstrap', async (req, res) => {
+  try {
+    const bcrypt = await import('bcryptjs');
+    // Clear all seeded data
+    await prisma.notification.deleteMany();
+    await prisma.auditLog.deleteMany();
+    await prisma.taskProposal.deleteMany();
+    await prisma.userAssignment.deleteMany();
+    await prisma.attachment.deleteMany();
+    await prisma.note.deleteMany();
+    await prisma.chatMessage.deleteMany();
+    await prisma.chatSession.deleteMany();
+    await prisma.reminderLog.deleteMany();
+    await prisma.workstreamMember.deleteMany();
+    await prisma.task.deleteMany();
+    await prisma.workstream.deleteMany();
+    await prisma.department.updateMany({ data: { headId: null } });
+    await prisma.user.deleteMany();
+    await prisma.department.deleteMany();
+    await prisma.appSetting.deleteMany();
+    // Create SUPER_ADMIN account
+    const passwordHash = await bcrypt.default.hash('Admin1234', 12);
+    const user = await prisma.user.create({
+      data: {
+        email: 'jiemin.lee@geohan.com',
+        name: 'Jie Min',
+        role: 'SUPER_ADMIN',
+        position: 'IT & Digitalisation',
+        passwordHash,
+      },
+    });
+    res.json({ ok: true, message: 'Database cleared and SUPER_ADMIN created', userId: user.id });
+  } catch (err: any) {
+    console.error('Bootstrap error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Error handler
 app.use(errorHandler);
 
