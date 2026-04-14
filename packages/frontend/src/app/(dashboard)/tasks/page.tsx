@@ -105,6 +105,18 @@ function TasksContent() {
     });
   }, []);
 
+  const setMultiFilter = useCallback((key: string, values: string[]) => {
+    setFilters(prev => {
+      const next = { ...prev, page: 1 };
+      if (values.length === 0) {
+        delete next[key];
+      } else {
+        next[key] = values.join(",");
+      }
+      return next;
+    });
+  }, []);
+
   const handleSelectTask = useCallback((taskId: string) => {
     setSelectedTaskId(taskId);
     const params = new URLSearchParams(searchParams.toString());
@@ -268,6 +280,7 @@ function TasksContent() {
       <FilterBar
         filters={filters}
         setFilter={setFilter}
+        setMultiFilter={setMultiFilter}
         search={search}
         setSearch={setSearch}
         workstreams={workstreams || []}

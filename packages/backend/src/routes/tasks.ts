@@ -3,7 +3,7 @@ import { prisma } from '../prisma';
 import { validate } from '../middleware/validate';
 import { createTaskSchema, updateTaskSchema, taskFilterSchema, requestChangesSchema, reproposeSchema, rejectProposalSchema } from 'shared';
 import { AppError } from '../middleware/error';
-import { getVisibleTaskFilter, canEditTask } from '../middleware/rbac';
+import { getVisibleTaskFilter, canEditTask, canEditAllTaskFields, getUserWorkstreamMemberships } from '../middleware/rbac';
 import { createNotification } from './notifications';
 import { createAuditLog } from './audit';
 
@@ -27,19 +27,30 @@ const taskInclude = {
 
 // GET / - list tasks with filters
 router.get('/', validate(taskFilterSchema, 'query'), asyncHandler(async (req: Request, res: Response) => {
-  const { status, priority, type, workstreamId, assigneeId, acceptanceStatus, search, dueBefore, dueAfter, page, limit, sortBy, sortOrder } = req.query as any;
+  const { status, priority, type, workstreamId, assigneeId, createdById, acceptanceStatus, search, dueBefore, dueAfter, page, limit, sortBy, sortOrder } = req.query as any;
+
+  // Helper: comma-separated values → Prisma { in: [...] } or single value
+  const multi = (val: string | undefined) => {
+    if (!val) return undefined;
+    const parts = val.split(',').filter(Boolean);
+    return parts.length > 1 ? { in: parts } : parts[0];
+  };
 
   const where: any = {};
-  if (status) where.status = status;
-  if (priority) where.priority = priority;
-  if (type) where.type = type;
-  if (workstreamId) where.workstreamId = workstreamId;
-  if (assigneeId) where.assigneeId = assigneeId;
+  if (status) where.status = multi(status);
+  if (priority) where.priority = multi(priority);
+  if (type) where.type = multi(type);
+  if (workstreamId) where.workstreamId = multi(workstreamId);
+  if (assigneeId) where.assigneeId = multi(assigneeId);
+  if (createdById) where.createdById = multi(createdById);
   if (acceptanceStatus) {
-    if (acceptanceStatus === 'Accepted') {
+    const parts = String(acceptanceStatus).split(',').filter(Boolean);
+    if (parts.length === 1 && parts[0] === 'Accepted') {
       where.OR = [{ acceptanceStatus: 'Accepted' }, { acceptanceStatus: null }];
+    } else if (parts.includes('Accepted')) {
+      where.OR = [{ acceptanceStatus: { in: parts.filter(p => p !== 'Accepted') } }, { acceptanceStatus: 'Accepted' }, { acceptanceStatus: null }];
     } else {
-      where.acceptanceStatus = acceptanceStatus;
+      where.acceptanceStatus = multi(acceptanceStatus);
     }
   }
   if (search) {
@@ -86,8 +97,21 @@ router.get('/', validate(taskFilterSchema, 'query'), asyncHandler(async (req: Re
     prisma.task.count({ where: combinedWhere }),
   ]);
 
+  // Compute canEdit per task using workstream memberships
+  const memberships = await getUserWorkstreamMemberships(req.user!.id);
+  const memberRoleMap = new Map(memberships.map(m => [m.workstreamId, m.role]));
+
+  const tasksWithPermissions = tasks.map(t => {
+    const isCreator = t.createdById === req.user!.id;
+    const isAssignee = t.assigneeId === req.user!.id;
+    const wsRole = t.workstreamId ? memberRoleMap.get(t.workstreamId) || null : null;
+    const canEdit = isCreator || isAssignee || wsRole === 'HOD' || wsRole === 'MANAGER' || wsRole === 'STAFF';
+    const canEditAll = isCreator || isAssignee || wsRole === 'HOD' || wsRole === 'MANAGER';
+    return { ...t, canEdit, canEditAllFields: canEditAll };
+  });
+
   res.json({
-    tasks,
+    tasks: tasksWithPermissions,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
 }));
@@ -186,41 +210,32 @@ router.get('/by-workstream', asyncHandler(async (req: Request, res: Response) =>
 
 // GET /by-assignee - tasks grouped by assignee
 router.get('/by-assignee', asyncHandler(async (req: Request, res: Response) => {
-  const user = req.user!;
+  const rbacFilter = await getVisibleTaskFilter(req.user!);
 
-  let userWhere: any = { isActive: true };
-  if (user.role === 'SUPER_ADMIN' || user.role === 'ED') {
-    // sees all users
-  } else if (user.role === 'HOD' || user.role === 'MANAGER') {
-    if (user.departmentId) {
-      userWhere = { isActive: true, departmentId: user.departmentId };
-    } else {
-      userWhere = { isActive: true, id: user.id };
-    }
-  } else if (user.role === 'STAFF') {
-    userWhere = { isActive: true, id: user.id };
-  }
-
-  const users = await prisma.user.findMany({
-    where: userWhere,
-    orderBy: { name: 'asc' },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      position: true,
-      departmentId: true,
-      dept: { select: { id: true, name: true } },
-      assignedTasks: {
-        where: { status: { notIn: ['Done', 'Cancelled'] } },
-        include: { workstream: true },
-        orderBy: [{ priority: 'asc' }, { dueDate: 'asc' }],
+  // Get all visible tasks that are active
+  const tasks = await prisma.task.findMany({
+    where: { AND: [rbacFilter, { status: { notIn: ['Done', 'Cancelled'] } }] },
+    include: {
+      workstream: true,
+      assignee: {
+        select: { id: true, name: true, email: true, role: true, position: true, departmentId: true, dept: { select: { id: true, name: true } } },
       },
     },
+    orderBy: [{ priority: 'asc' }, { dueDate: 'asc' }],
   });
 
-  res.json(users.filter(u => u.assignedTasks.length > 0));
+  // Group by assignee
+  const assigneeMap = new Map<string, any>();
+  for (const task of tasks) {
+    if (!task.assignee) continue;
+    const key = task.assignee.id;
+    if (!assigneeMap.has(key)) {
+      assigneeMap.set(key, { ...task.assignee, assignedTasks: [] });
+    }
+    assigneeMap.get(key).assignedTasks.push(task);
+  }
+
+  res.json(Array.from(assigneeMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
 }));
 
 // GET /:id - task detail
@@ -239,7 +254,10 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!task) throw new AppError(404, 'Task not found');
-  res.json(task);
+
+  const canEditDetail = await canEditTask(req.user!, task);
+  const canEditAllDetail = await canEditAllTaskFields(req.user!, task);
+  res.json({ ...task, canEdit: canEditDetail, canEditAllFields: canEditAllDetail });
 }));
 
 // GET /:id/proposals - negotiation history
@@ -559,16 +577,15 @@ router.patch('/:id', validate(updateTaskSchema), asyncHandler(async (req: Reques
   const data: any = { ...req.body };
   const userId = req.user!.id;
 
-  // STAFF can only update status
-  if (req.user!.role === 'STAFF' && existing.assigneeId !== req.user!.id && existing.createdById !== req.user!.id) {
-    throw new AppError(403, 'You do not have permission to edit this task');
-  }
-  if (req.user!.role === 'STAFF') {
+  // Workstream-based field restriction: if user is STAFF in this workstream
+  // (and not creator/assignee), restrict to status-only updates
+  const canEditAll = await canEditAllTaskFields(req.user!, existing);
+  if (!canEditAll) {
     const allowedFields = ['status'];
     const attemptedFields = Object.keys(data);
     const disallowed = attemptedFields.filter(f => !allowedFields.includes(f));
     if (disallowed.length > 0) {
-      throw new AppError(403, `Staff can only update status. Cannot update: ${disallowed.join(', ')}`);
+      throw new AppError(403, `You can only update status for this task. Cannot update: ${disallowed.join(', ')}`);
     }
   }
 

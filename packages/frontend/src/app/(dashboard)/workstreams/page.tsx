@@ -1,7 +1,7 @@
 "use client";
 
 import { useTasksByWorkstream } from "@/hooks/use-tasks";
-import { useCreateWorkstream, useUpdateWorkstream, useDeleteWorkstream } from "@/hooks/use-workstreams";
+import { useCreateWorkstream, useUpdateWorkstream, useDeleteWorkstream, useUsers } from "@/hooks/use-workstreams";
 import { useAuthStore } from "@/store/auth-store";
 import { canManageWorkstreams } from "@/lib/permissions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -9,13 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TaskCard } from "@/components/task-card";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
+import { FilterBar } from "@/components/views/filter-bar";
+import { filterTasks } from "@/lib/filter-tasks";
 import { useState, useCallback } from "react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, X, Check, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 export default function WorkstreamsPage() {
+  const router = useRouter();
   const { user: currentUser } = useAuthStore();
   const isED = currentUser ? canManageWorkstreams(currentUser) : false;
   const { data: workstreams, isLoading } = useTasksByWorkstream();
@@ -30,6 +34,27 @@ export default function WorkstreamsPage() {
   const [showAddWs, setShowAddWs] = useState(false);
   const [newWs, setNewWs] = useState({ code: "", name: "", color: "#6366f1" });
   const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void }>({ open: false, title: "", description: "", onConfirm: () => {} });
+  const { data: users } = useUsers();
+  const [filters, setFilters] = useState<Record<string, any>>({});
+  const [searchFilter, setSearchFilter] = useState("");
+
+  const setFilterCb = useCallback((key: string, value: string) => {
+    setFilters(prev => {
+      const next = { ...prev };
+      if (value === "all") { delete next[key]; } else { next[key] = value; }
+      return next;
+    });
+  }, []);
+
+  const setMultiFilter = useCallback((key: string, values: string[]) => {
+    setFilters(prev => {
+      const next = { ...prev };
+      if (values.length === 0) { delete next[key]; } else { next[key] = values.join(","); }
+      return next;
+    });
+  }, []);
+
+  const hasFilters = searchFilter || Object.keys(filters).length > 0;
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => {
@@ -121,6 +146,17 @@ export default function WorkstreamsPage() {
         </Card>
       )}
 
+      {/* Filters */}
+      <FilterBar
+        filters={filters}
+        setFilter={setFilterCb}
+        setMultiFilter={setMultiFilter}
+        search={searchFilter}
+        setSearch={setSearchFilter}
+        workstreams={workstreams?.map((ws: any) => ({ id: ws.id, code: ws.code, name: ws.name, color: ws.color })) || []}
+        users={users || []}
+      />
+
       <div className="space-y-3">
         {workstreams?.map((ws: any) => (
           <Card key={ws.id}>
@@ -154,6 +190,9 @@ export default function WorkstreamsPage() {
                     </button>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">{ws.tasks?.length || 0} active</span>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => router.push(`/workstreams/${ws.id}/members`)}>
+                        <Users className="h-3.5 w-3.5 mr-1" /> Members
+                      </Button>
                       {isED && (
                         <>
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(ws)}>
@@ -170,13 +209,17 @@ export default function WorkstreamsPage() {
               </div>
             </CardHeader>
 
-            {expanded.has(ws.id) && ws.tasks?.length > 0 && (
-              <CardContent className="pt-0 space-y-2">
-                {ws.tasks.map((task: any) => (
-                  <TaskCard key={task.id} task={task} onClick={handleSelectTask} isSelected={selectedTaskId === task.id} />
-                ))}
-              </CardContent>
-            )}
+            {expanded.has(ws.id) && ws.tasks?.length > 0 && (() => {
+              const filtered = hasFilters ? filterTasks(ws.tasks, filters, searchFilter) : ws.tasks;
+              return (
+                <CardContent className="pt-0 space-y-2">
+                  {filtered.length === 0 && <p className="text-sm text-muted-foreground">No matching tasks</p>}
+                  {filtered.map((task: any) => (
+                    <TaskCard key={task.id} task={task} onClick={handleSelectTask} isSelected={selectedTaskId === task.id} />
+                  ))}
+                </CardContent>
+              );
+            })()}
           </Card>
         ))}
       </div>

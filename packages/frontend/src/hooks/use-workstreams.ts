@@ -96,3 +96,45 @@ export function useResetPassword() {
       api.post("/auth/reset-password", data).then(r => r.data),
   });
 }
+
+// Workstream Members hooks
+export function useWorkstreamMembers(workstreamId: string) {
+  return useQuery({
+    queryKey: ["workstream-members", workstreamId],
+    queryFn: () => api.get(`/workstreams/${workstreamId}/members`).then(r => r.data),
+    enabled: !!workstreamId,
+  });
+}
+
+export function useAddWorkstreamMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workstreamId, userId, role }: { workstreamId: string; userId: string; role: string }) =>
+      api.post(`/workstreams/${workstreamId}/members`, { userId, role }).then(r => r.data),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["workstream-members", vars.workstreamId] });
+    },
+  });
+}
+
+export function useUpdateWorkstreamMemberRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workstreamId, userId, role }: { workstreamId: string; userId: string; role: string }) =>
+      api.patch(`/workstreams/${workstreamId}/members/${userId}`, { role }).then(r => r.data),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["workstream-members", vars.workstreamId] });
+    },
+  });
+}
+
+export function useRemoveWorkstreamMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workstreamId, userId }: { workstreamId: string; userId: string }) =>
+      api.delete(`/workstreams/${workstreamId}/members/${userId}`).then(r => r.data),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["workstream-members", vars.workstreamId] });
+    },
+  });
+}

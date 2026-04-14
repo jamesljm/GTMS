@@ -16,6 +16,7 @@ async function main() {
   await prisma.chatSession.deleteMany();
   await prisma.reminderLog.deleteMany();
   await prisma.task.deleteMany();
+  await prisma.workstreamMember.deleteMany();
   await prisma.workstream.deleteMany();
   await prisma.user.deleteMany();
   await prisma.appSetting.deleteMany();
@@ -86,6 +87,76 @@ async function main() {
     ws[w.code] = created.id;
   }
   console.log(`Seeded ${workstreams.length} workstreams`);
+
+  // --- WORKSTREAM MEMBERS ---
+  // Map users to workstreams with roles based on their responsibilities
+  const workstreamMembers: { email: string; wsCode: string; role: string }[] = [
+    // ED is member of all workstreams as HOD
+    ...workstreams.map(w => ({ email: 'ed@gtms.com', wsCode: w.code, role: 'HOD' })),
+    // SUPER_ADMIN (Jie Min) - IT, ACU, ADM workstreams
+    { email: 'jiemin@geohan.com', wsCode: 'IT', role: 'HOD' },
+    { email: 'jiemin@geohan.com', wsCode: 'ACU', role: 'HOD' },
+    { email: 'jiemin@geohan.com', wsCode: 'ADM', role: 'MANAGER' },
+    // Finance HOD
+    { email: 'june@geohan.com', wsCode: 'FIN', role: 'HOD' },
+    { email: 'june@geohan.com', wsCode: 'FAN', role: 'HOD' },
+    { email: 'june@geohan.com', wsCode: 'ACU', role: 'MANAGER' },
+    // IT HOD
+    { email: 'kevin@geohan.com', wsCode: 'IT', role: 'MANAGER' },
+    // HR HOD
+    { email: 'sarah@geohan.com', wsCode: 'HR', role: 'HOD' },
+    // Operations HOD
+    { email: 'david@geohan.com', wsCode: 'OPS', role: 'HOD' },
+    // ESG HOD
+    { email: 'farah@geohan.com', wsCode: 'ESG', role: 'HOD' },
+    // IR HOD
+    { email: 'rajan@geohan.com', wsCode: 'IR', role: 'HOD' },
+    // Legal HOD
+    { email: 'lina@geohan.com', wsCode: 'LEG', role: 'HOD' },
+    { email: 'lina@geohan.com', wsCode: 'TEN', role: 'MANAGER' },
+    // Commercial HOD
+    { email: 'ahmad@geohan.com', wsCode: 'COM', role: 'HOD' },
+    // Managers
+    { email: 'mei@geohan.com', wsCode: 'FIN', role: 'MANAGER' },
+    { email: 'james@geohan.com', wsCode: 'IT', role: 'STAFF' },
+    { email: 'anis@geohan.com', wsCode: 'ADM', role: 'HOD' },
+    { email: 'kumar@geohan.com', wsCode: 'TEN', role: 'HOD' },
+    { email: 'grace@geohan.com', wsCode: 'FAN', role: 'MANAGER' },
+    { email: 'zul@geohan.com', wsCode: 'GPL', role: 'HOD' },
+    { email: 'zul@geohan.com', wsCode: 'ADM', role: 'STAFF' },
+    // Staff
+    { email: 'rachel@geohan.com', wsCode: 'FIN', role: 'STAFF' },
+    { email: 'alvin@geohan.com', wsCode: 'FIN', role: 'STAFF' },
+    { email: 'alvin@geohan.com', wsCode: 'ESG', role: 'STAFF' },
+    { email: 'yc@geohan.com', wsCode: 'ACU', role: 'STAFF' },
+    { email: 'yc@geohan.com', wsCode: 'ADM', role: 'STAFF' },
+    { email: 'ken@geohan.com', wsCode: 'FIN', role: 'STAFF' },
+    { email: 'alia@geohan.com', wsCode: 'OPS', role: 'STAFF' },
+    { email: 'joseph@geohan.com', wsCode: 'LEG', role: 'STAFF' },
+    { email: 'jiva@geohan.com', wsCode: 'FIN', role: 'STAFF' },
+    { email: 'athirah@geohan.com', wsCode: 'FIN', role: 'STAFF' },
+    { email: 'jinghui@geohan.com', wsCode: 'COM', role: 'STAFF' },
+    { email: 'jinghui@geohan.com', wsCode: 'FIN', role: 'STAFF' },
+    { email: 'jeremy@geohan.com', wsCode: 'OPS', role: 'STAFF' },
+    { email: 'jeremy@geohan.com', wsCode: 'FIN', role: 'STAFF' },
+    { email: 'mroh@geohan.com', wsCode: 'OPS', role: 'MANAGER' },
+    // STR workstream - strategic roles
+    { email: 'june@geohan.com', wsCode: 'STR', role: 'STAFF' },
+    { email: 'lina@geohan.com', wsCode: 'STR', role: 'STAFF' },
+  ];
+
+  let memberCount = 0;
+  for (const m of workstreamMembers) {
+    const userId = createdUsers[m.email];
+    const workstreamId = ws[m.wsCode];
+    if (userId && workstreamId) {
+      await prisma.workstreamMember.create({
+        data: { userId, workstreamId, role: m.role },
+      });
+      memberCount++;
+    }
+  }
+  console.log(`Seeded ${memberCount} workstream members`);
 
   // --- HELPERS ---
   const now = new Date();

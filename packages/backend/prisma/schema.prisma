@@ -49,9 +49,10 @@ model User {
   chatMessages  ChatMessage[]
   reminderLogs  ReminderLog[]
   assignments   UserAssignment[]
-  proposals     TaskProposal[]
-  notifications Notification[]
-  auditLogs     AuditLog[]
+  proposals              TaskProposal[]
+  notifications          Notification[]
+  auditLogs              AuditLog[]
+  workstreamMemberships  WorkstreamMember[]
 
   @@index([departmentId])
 }
@@ -66,7 +67,23 @@ model Workstream {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tasks Task[]
+  tasks   Task[]
+  members WorkstreamMember[]
+}
+
+model WorkstreamMember {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workstreamId String
+  workstream   Workstream @relation(fields: [workstreamId], references: [id], onDelete: Cascade)
+  role         String     @default("STAFF") // HOD, MANAGER, STAFF
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([userId, workstreamId])
+  @@index([userId])
+  @@index([workstreamId])
 }
 
 model Task {

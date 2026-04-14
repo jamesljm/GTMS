@@ -2,7 +2,7 @@
 
 import { useTeamSummary } from "@/hooks/use-dashboard";
 import { useTasksByAssignee } from "@/hooks/use-tasks";
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword } from "@/hooks/use-workstreams";
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword, useWorkstreams } from "@/hooks/use-workstreams";
 import { useDepartments } from "@/hooks/use-departments";
 import { useCreateAssignment, useUpdateAssignment, useDeleteAssignment } from "@/hooks/use-assignments";
 import { useAuthStore } from "@/store/auth-store";
@@ -15,6 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TaskCard } from "@/components/task-card";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
+import { FilterBar } from "@/components/views/filter-bar";
+import { filterTasks } from "@/lib/filter-tasks";
 import { cn } from "@/lib/utils";
 import { useState, useCallback } from "react";
 import { Plus, Mail, Pencil, Trash2, X, Check, UserPlus, Star, KeyRound, Copy, Shield, ShieldCheck } from "lucide-react";
@@ -107,6 +109,29 @@ export default function TeamPage() {
   const handleClosePanel = useCallback(() => {
     setSelectedTaskId(null);
   }, []);
+
+  // Filters for task cards
+  const { data: workstreamsData } = useWorkstreams();
+  const [filters, setFilters] = useState<Record<string, any>>({});
+  const [searchFilter, setSearchFilter] = useState("");
+
+  const setFilterCb = useCallback((key: string, value: string) => {
+    setFilters(prev => {
+      const next = { ...prev };
+      if (value === "all") { delete next[key]; } else { next[key] = value; }
+      return next;
+    });
+  }, []);
+
+  const setMultiFilter = useCallback((key: string, values: string[]) => {
+    setFilters(prev => {
+      const next = { ...prev };
+      if (values.length === 0) { delete next[key]; } else { next[key] = values.join(","); }
+      return next;
+    });
+  }, []);
+
+  const hasFilters = searchFilter || Object.keys(filters).length > 0;
 
   // Counter for stable unique keys on new assignment rows
   const [tempIdCounter, setTempIdCounter] = useState(0);
@@ -424,26 +449,41 @@ export default function TeamPage() {
         ))}
       </div>
 
+      {/* FilterBar for task cards */}
+      {expandedUser && (
+        <FilterBar
+          filters={filters}
+          setFilter={setFilterCb}
+          setMultiFilter={setMultiFilter}
+          search={searchFilter}
+          setSearch={setSearchFilter}
+          workstreams={workstreamsData || []}
+          users={allUsers || []}
+        />
+      )}
+
       {/* Expanded task list */}
-      {expandedUser && tasksByAssignee && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">
-              Tasks for {tasksByAssignee.find((u: any) => u.id === expandedUser)?.name}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {tasksByAssignee
-              .find((u: any) => u.id === expandedUser)
-              ?.assignedTasks?.map((task: any) => (
+      {expandedUser && tasksByAssignee && (() => {
+        const rawTasks = tasksByAssignee.find((u: any) => u.id === expandedUser)?.assignedTasks || [];
+        const filtered = hasFilters ? filterTasks(rawTasks, filters, searchFilter) : rawTasks;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">
+                Tasks for {tasksByAssignee.find((u: any) => u.id === expandedUser)?.name}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {filtered.map((task: any) => (
                 <TaskCard key={task.id} task={task} onClick={handleSelectTask} isSelected={selectedTaskId === task.id} />
               ))}
-            {(!tasksByAssignee.find((u: any) => u.id === expandedUser)?.assignedTasks?.length) && (
-              <p className="text-sm text-muted-foreground">No active tasks assigned</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {filtered.length === 0 && (
+                <p className="text-sm text-muted-foreground">{hasFilters ? "No matching tasks" : "No active tasks assigned"}</p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Task detail panel */}
       <TaskDetailPanel

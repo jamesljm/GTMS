@@ -1,19 +1,73 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { Search } from "lucide-react";
 
 interface FilterBarProps {
   filters: Record<string, any>;
   setFilter: (key: string, value: string) => void;
+  setMultiFilter?: (key: string, values: string[]) => void;
   search: string;
   setSearch: (s: string) => void;
   workstreams: any[];
   users: any[];
 }
 
-export function FilterBar({ filters, setFilter, search, setSearch, workstreams, users }: FilterBarProps) {
+const statusOptions = [
+  { value: "Not Started", label: "Not Started" },
+  { value: "In Progress", label: "In Progress" },
+  { value: "Waiting On", label: "Waiting On" },
+  { value: "Blocked", label: "Blocked" },
+  { value: "Done", label: "Done" },
+];
+
+const priorityOptions = [
+  { value: "Critical", label: "Critical" },
+  { value: "High", label: "High" },
+  { value: "Medium", label: "Medium" },
+  { value: "Low", label: "Low" },
+];
+
+const acceptanceOptions = [
+  { value: "Accepted", label: "Accepted" },
+  { value: "Pending", label: "Pending" },
+  { value: "Changes Requested", label: "Changes Requested" },
+  { value: "Reproposed", label: "Reproposed" },
+];
+
+function parseMulti(val: any): string[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  return String(val).split(",").filter(Boolean);
+}
+
+export function FilterBar({ filters, setFilter, setMultiFilter, search, setSearch, workstreams, users }: FilterBarProps) {
+  const handleMulti = (key: string, values: string[]) => {
+    if (setMultiFilter) {
+      setMultiFilter(key, values);
+    } else {
+      // Fallback: join as comma-separated for single-value setFilter
+      setFilter(key, values.length > 0 ? values.join(",") : "all");
+    }
+  };
+
+  const wsOptions = (workstreams || []).map((ws: any) => ({
+    value: ws.id,
+    label: `${ws.code} - ${ws.name}`,
+    color: ws.color,
+  }));
+
+  const assigneeOptions = (users || []).map((u: any) => ({
+    value: u.id,
+    label: u.name,
+  }));
+
+  const initiatorOptions = (users || []).map((u: any) => ({
+    value: u.id,
+    label: u.name,
+  }));
+
   return (
     <div className="flex flex-wrap gap-2 mb-3">
       <div className="relative flex-1 min-w-[180px]">
@@ -25,65 +79,42 @@ export function FilterBar({ filters, setFilter, search, setSearch, workstreams, 
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
-      <Select value={filters.status || "all"} onValueChange={(v) => setFilter("status", v)}>
-        <SelectTrigger className="w-[130px] h-9">
-          <SelectValue placeholder="Status" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Status</SelectItem>
-          <SelectItem value="Not Started">Not Started</SelectItem>
-          <SelectItem value="In Progress">In Progress</SelectItem>
-          <SelectItem value="Waiting On">Waiting On</SelectItem>
-          <SelectItem value="Blocked">Blocked</SelectItem>
-          <SelectItem value="Done">Done</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={filters.priority || "all"} onValueChange={(v) => setFilter("priority", v)}>
-        <SelectTrigger className="w-[120px] h-9">
-          <SelectValue placeholder="Priority" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Priority</SelectItem>
-          <SelectItem value="Critical">Critical</SelectItem>
-          <SelectItem value="High">High</SelectItem>
-          <SelectItem value="Medium">Medium</SelectItem>
-          <SelectItem value="Low">Low</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={filters.workstreamId || "all"} onValueChange={(v) => setFilter("workstreamId", v)}>
-        <SelectTrigger className="w-[140px] h-9">
-          <SelectValue placeholder="Workstream" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Workstreams</SelectItem>
-          {workstreams?.map((ws: any) => (
-            <SelectItem key={ws.id} value={ws.id}>{ws.code} - {ws.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select value={filters.assigneeId || "all"} onValueChange={(v) => setFilter("assigneeId", v)}>
-        <SelectTrigger className="w-[140px] h-9">
-          <SelectValue placeholder="Assignee" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Assignees</SelectItem>
-          {users?.map((u: any) => (
-            <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select value={filters.acceptanceStatus || "all"} onValueChange={(v) => setFilter("acceptanceStatus", v)}>
-        <SelectTrigger className="w-[140px] h-9">
-          <SelectValue placeholder="Acceptance" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Acceptance</SelectItem>
-          <SelectItem value="Accepted">Accepted</SelectItem>
-          <SelectItem value="Pending">Pending</SelectItem>
-          <SelectItem value="Changes Requested">Changes Requested</SelectItem>
-          <SelectItem value="Reproposed">Reproposed</SelectItem>
-        </SelectContent>
-      </Select>
+      <MultiSelectFilter
+        label="Status"
+        options={statusOptions}
+        selected={parseMulti(filters.status)}
+        onChange={(v) => handleMulti("status", v)}
+      />
+      <MultiSelectFilter
+        label="Priority"
+        options={priorityOptions}
+        selected={parseMulti(filters.priority)}
+        onChange={(v) => handleMulti("priority", v)}
+      />
+      <MultiSelectFilter
+        label="Workstream"
+        options={wsOptions}
+        selected={parseMulti(filters.workstreamId)}
+        onChange={(v) => handleMulti("workstreamId", v)}
+      />
+      <MultiSelectFilter
+        label="Assignee"
+        options={assigneeOptions}
+        selected={parseMulti(filters.assigneeId)}
+        onChange={(v) => handleMulti("assigneeId", v)}
+      />
+      <MultiSelectFilter
+        label="Initiator"
+        options={initiatorOptions}
+        selected={parseMulti(filters.createdById)}
+        onChange={(v) => handleMulti("createdById", v)}
+      />
+      <MultiSelectFilter
+        label="Acceptance"
+        options={acceptanceOptions}
+        selected={parseMulti(filters.acceptanceStatus)}
+        onChange={(v) => handleMulti("acceptanceStatus", v)}
+      />
     </div>
   );
 }

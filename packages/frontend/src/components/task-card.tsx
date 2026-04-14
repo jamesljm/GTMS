@@ -162,8 +162,15 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
                 <WorkstreamBadge code={task.workstream.code} color={task.workstream.color} />
               )}
               {isDraft && task.acceptanceStatus && (
-                <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium", acceptanceBadgeStyles[task.acceptanceStatus] || "bg-gray-100 text-gray-600")}>
+                <span className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-0.5",
+                  acceptanceBadgeStyles[task.acceptanceStatus] || "bg-gray-100 text-gray-600",
+                  (task.acceptanceStatus === "Changes Requested" || task.acceptanceStatus === "Reproposed") && "hover:underline cursor-pointer",
+                )}>
                   {task.acceptanceStatus}
+                  {(task.acceptanceStatus === "Changes Requested" || task.acceptanceStatus === "Reproposed") && (
+                    <span className="text-[9px] opacity-70"> - Review</span>
+                  )}
                 </span>
               )}
             </div>

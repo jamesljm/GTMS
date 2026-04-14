@@ -23,6 +23,7 @@ import assignmentRoutes from './routes/assignments';
 import exportRoutes from './routes/export';
 import notificationRoutes from './routes/notifications';
 import auditRoutes from './routes/audit';
+import workstreamMemberRoutes from './routes/workstream-members';
 
 // Workers
 import { startWorkers, setupRecurringJobs } from './services/workers';
@@ -81,6 +82,7 @@ app.use('/api/v1/users/:userId/assignments', authenticate, assignmentRoutes);
 app.use('/api/v1/export', authenticate, exportRoutes);
 app.use('/api/v1/notifications', authenticate, notificationRoutes);
 app.use('/api/v1/audit-logs', authenticate, auditRoutes);
+app.use('/api/v1/workstreams/:id/members', authenticate, workstreamMemberRoutes);
 app.use('/api/v1/webhooks', webhookRoutes); // No auth for webhooks
 
 // Admin endpoints

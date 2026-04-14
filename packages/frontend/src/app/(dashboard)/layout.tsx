@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuthStore } from "@/store/auth-store";
 import {
   LayoutDashboard, ListTodo, MessageSquare, Users, Layers,
-  Settings, LogOut, Menu, X, Building2, ClipboardCheck, Activity, ShieldCheck,
+  Settings, LogOut, Menu, X, Building2, ClipboardCheck, Activity, ShieldCheck, HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
@@ -25,6 +25,7 @@ const navigation = [
   { name: "Departments", href: "/departments", icon: Building2 },
   { name: "Workstreams", href: "/workstreams", icon: Layers },
   { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Help", href: "/help", icon: HelpCircle },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -150,8 +151,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="p-4 md:p-6">{children}</div>
       </main>
 
-      {/* Bottom nav for mobile */}
-      <BottomNav />
+      {/* Bottom nav for mobile — hidden when sidebar is open to prevent overlap with Sign Out */}
+      {!sidebarOpen && <BottomNav />}
     </div>
   );
 }

@@ -62,6 +62,7 @@ export const taskFilterSchema = z.object({
   type: z.string().optional(),
   workstreamId: z.string().optional(),
   assigneeId: z.string().optional(),
+  createdById: z.string().optional(),
   acceptanceStatus: z.string().optional(),
   search: z.string().optional(),
   dueBefore: z.string().optional(),

@@ -50,7 +50,8 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
   const { data: workstreams } = useWorkstreams();
   const { data: users } = useUsers();
 
-  const canEditAll = currentUser ? canEditAllFields(currentUser) : false;
+  // Prefer API-driven permission, fall back to global role check
+  const canEditAll = task?.canEditAllFields ?? (currentUser ? canEditAllFields(currentUser) : false);
 
   // Filter assignee list by role
   const filteredUsers = users?.filter((u: any) => {
@@ -236,7 +237,7 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
                     <X className="h-3 w-3 mr-1" /> Cancel
                   </Button>
                 </>
-              ) : canEditAll ? (
+              ) : (task?.canEdit ?? canEditAll) ? (
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={startEditing}>
                   <Pencil className="h-3 w-3 mr-1" /> Edit
                 </Button>

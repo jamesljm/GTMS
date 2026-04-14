@@ -103,9 +103,16 @@ export function NotificationDropdown() {
                   <div className="flex-1 min-w-0">
                     <p className={cn("text-xs", !n.isRead && "font-medium")}>{n.title}</p>
                     <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-[10px] text-muted-foreground">
+                        {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                      </p>
+                      {n.taskId && (n.type === 'TASK_REPROPOSED' || n.type === 'TASK_CHANGES_REQUESTED') && (
+                        <span className="text-[10px] text-primary font-medium flex items-center gap-0.5">
+                          <ExternalLink className="h-2.5 w-2.5" /> View Task
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {!n.isRead && (
                     <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />

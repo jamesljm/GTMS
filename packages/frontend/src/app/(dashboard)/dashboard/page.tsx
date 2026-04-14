@@ -3,7 +3,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TaskCard } from "@/components/task-card";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
+import { FilterBar } from "@/components/views/filter-bar";
 import { useDashboardStats, useDashboardToday, useDashboardWaiting, useDashboardCritical, useWorkstreamSummary } from "@/hooks/use-dashboard";
+import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
+import { filterTasks } from "@/lib/filter-tasks";
 import { AlertTriangle, Clock, Eye, ListTodo, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useState, useCallback } from "react";
@@ -14,7 +17,32 @@ export default function DashboardPage() {
   const { data: waitingTasks } = useDashboardWaiting();
   const { data: criticalTasks } = useDashboardCritical();
   const { data: workstreamSummary } = useWorkstreamSummary();
+  const { data: workstreams } = useWorkstreams();
+  const { data: users } = useUsers();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Record<string, any>>({});
+  const [search, setSearch] = useState("");
+
+  const setFilter = useCallback((key: string, value: string) => {
+    setFilters(prev => {
+      const next = { ...prev };
+      if (value === "all") { delete next[key]; } else { next[key] = value; }
+      return next;
+    });
+  }, []);
+
+  const setMultiFilter = useCallback((key: string, values: string[]) => {
+    setFilters(prev => {
+      const next = { ...prev };
+      if (values.length === 0) { delete next[key]; } else { next[key] = values.join(","); }
+      return next;
+    });
+  }, []);
+
+  const hasFilters = search || Object.keys(filters).length > 0;
+  const filteredToday = hasFilters ? filterTasks(todayTasks || [], filters, search) : todayTasks;
+  const filteredWaiting = hasFilters ? filterTasks(waitingTasks || [], filters, search) : waitingTasks;
+  const filteredCritical = hasFilters ? filterTasks(criticalTasks || [], filters, search) : criticalTasks;
 
   const handleSelectTask = useCallback((taskId: string) => {
     setSelectedTaskId(taskId);
@@ -92,6 +120,17 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Filters */}
+      <FilterBar
+        filters={filters}
+        setFilter={setFilter}
+        setMultiFilter={setMultiFilter}
+        search={search}
+        setSearch={setSearch}
+        workstreams={workstreams || []}
+        users={users || []}
+      />
+
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Today's Focus */}
         <Card>
@@ -99,13 +138,13 @@ export default function DashboardPage() {
             <CardTitle className="text-lg">Today's Focus</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {todayTasks?.length === 0 && <p className="text-sm text-muted-foreground">No urgent tasks today</p>}
-            {todayTasks?.slice(0, 8).map((task: any) => (
+            {(filteredToday?.length ?? 0) === 0 && <p className="text-sm text-muted-foreground">No urgent tasks today</p>}
+            {filteredToday?.slice(0, 8).map((task: any) => (
               <TaskCard key={task.id} task={task} compact onClick={handleSelectTask} isSelected={selectedTaskId === task.id} />
             ))}
-            {todayTasks?.length > 8 && (
+            {(filteredToday?.length ?? 0) > 8 && (
               <Link href="/tasks?status=In+Progress" className="text-sm text-primary hover:underline">
-                View all {todayTasks.length} tasks...
+                View all {filteredToday?.length} tasks...
               </Link>
             )}
           </CardContent>
@@ -117,13 +156,13 @@ export default function DashboardPage() {
             <CardTitle className="text-lg">Waiting On</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {waitingTasks?.length === 0 && <p className="text-sm text-muted-foreground">No pending items</p>}
-            {waitingTasks?.slice(0, 8).map((task: any) => (
+            {(filteredWaiting?.length ?? 0) === 0 && <p className="text-sm text-muted-foreground">No pending items</p>}
+            {filteredWaiting?.slice(0, 8).map((task: any) => (
               <TaskCard key={task.id} task={task} compact onClick={handleSelectTask} isSelected={selectedTaskId === task.id} />
             ))}
-            {waitingTasks?.length > 8 && (
+            {(filteredWaiting?.length ?? 0) > 8 && (
               <Link href="/tasks?type=Waiting+On" className="text-sm text-primary hover:underline">
-                View all {waitingTasks.length} items...
+                View all {filteredWaiting?.length} items...
               </Link>
             )}
           </CardContent>
@@ -135,8 +174,8 @@ export default function DashboardPage() {
             <CardTitle className="text-lg">Critical Tasks</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {criticalTasks?.length === 0 && <p className="text-sm text-muted-foreground">No critical tasks</p>}
-            {criticalTasks?.slice(0, 8).map((task: any) => (
+            {(filteredCritical?.length ?? 0) === 0 && <p className="text-sm text-muted-foreground">No critical tasks</p>}
+            {filteredCritical?.slice(0, 8).map((task: any) => (
               <TaskCard key={task.id} task={task} compact onClick={handleSelectTask} isSelected={selectedTaskId === task.id} />
             ))}
           </CardContent>
