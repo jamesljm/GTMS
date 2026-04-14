@@ -333,6 +333,7 @@ function TasksContent() {
               open={!!selectedTaskId}
               onClose={handleClosePanel}
               mode="pinned"
+              onNavigateToTask={handleSelectTask}
             />
           </div>
         </div>
@@ -344,6 +345,7 @@ function TasksContent() {
             open={!!selectedTaskId}
             onClose={handleClosePanel}
             mode="overlay"
+            onNavigateToTask={handleSelectTask}
           />
         </>
       )}

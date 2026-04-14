@@ -178,6 +178,7 @@ export default function DashboardPage() {
         taskId={selectedTaskId}
         open={!!selectedTaskId}
         onClose={handleClosePanel}
+        onNavigateToTask={handleSelectTask}
       />
     </div>
   );

@@ -16,7 +16,7 @@ import { WorkstreamBadge } from "@/components/workstream-badge";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
-  Trash2, Upload, Plus, CheckCircle2, Circle,
+  Trash2, Upload, Plus, CheckCircle2, Circle, CornerDownRight,
   FileText, X, Download, Pencil, Check,
   MessageSquareMore, ArrowLeftRight, ChevronDown, ChevronUp, XCircle,
 } from "lucide-react";
@@ -30,9 +30,10 @@ interface TaskDetailContentProps {
   taskId: string;
   onClose: () => void;
   inline?: boolean;
+  onNavigateToTask?: (taskId: string) => void;
 }
 
-export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetailContentProps) {
+export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateToTask }: TaskDetailContentProps) {
   const { data: task, isLoading } = useTask(taskId);
   const updateTask = useUpdateTask();
   const createTask = useCreateTask();
@@ -62,6 +63,8 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
 
   const [noteContent, setNoteContent] = useState("");
   const [subtaskTitle, setSubtaskTitle] = useState("");
+  const [subtaskExpanded, setSubtaskExpanded] = useState(false);
+  const [subtaskForm, setSubtaskForm] = useState<{ description: string; type: string; priority: string; status: string; assigneeId: string; dueDate: string; workstreamId: string }>({ description: "", type: "My Action", priority: "", status: "Not Started", assigneeId: "", dueDate: "", workstreamId: "" });
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
@@ -75,9 +78,11 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
   const [reproposeComment, setReproposeComment] = useState("");
   const [showProposalHistory, setShowProposalHistory] = useState(false);
 
-  // Reset edit mode when task changes
+  // Reset edit mode and subtask form when task changes
   useEffect(() => {
     setEditing(false);
+    setSubtaskExpanded(false);
+    setSubtaskTitle("");
   }, [taskId]);
 
   const startEditing = () => {
@@ -130,17 +135,39 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
     updateTask.mutate({ id: task.id, status });
   };
 
+  const handleExpandSubtaskForm = () => {
+    if (!task || !subtaskTitle.trim()) return;
+    setSubtaskForm({
+      description: "",
+      type: "My Action",
+      priority: task.priority || "Medium",
+      status: "Not Started",
+      assigneeId: "",
+      dueDate: task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : "",
+      workstreamId: task.workstreamId || "",
+    });
+    setSubtaskExpanded(true);
+  };
+
   const handleAddSubtask = () => {
     if (!task || !subtaskTitle.trim()) return;
     createTask.mutate({
       title: subtaskTitle.trim(),
-      type: "My Action",
-      priority: task.priority,
+      description: subtaskForm.description || undefined,
+      type: subtaskForm.type,
+      priority: subtaskForm.priority,
+      status: subtaskForm.status,
       parentId: task.id,
-      workstreamId: task.workstreamId || undefined,
-      dueDate: task.dueDate || undefined,
+      assigneeId: subtaskForm.assigneeId || undefined,
+      workstreamId: subtaskForm.workstreamId || undefined,
+      dueDate: subtaskForm.dueDate || undefined,
     });
     setSubtaskTitle("");
+    setSubtaskExpanded(false);
+  };
+
+  const handleCancelSubtaskForm = () => {
+    setSubtaskExpanded(false);
   };
 
   const handleToggleSubtask = (subtaskId: string, currentStatus: string) => {
@@ -179,6 +206,15 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
         <div className="p-6 pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1 pr-2">
+              {task.parent && (
+                <button
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary mb-1 max-w-full"
+                  onClick={() => onNavigateToTask?.(task.parent.id)}
+                >
+                  <CornerDownRight className="h-3 w-3 shrink-0" />
+                  <span className="truncate">Subtask of: {task.parent.title}</span>
+                </button>
+              )}
               <span className="text-xs font-mono text-muted-foreground">{task.id.slice(0, 8)}</span>
               {editing ? (
                 <Input
@@ -500,17 +536,102 @@ export function TaskDetailContent({ taskId, onClose, inline = false }: TaskDetai
             {task.subtasks?.length > 0 && (
               <div className="space-y-1 mb-2">
                 {task.subtasks.map((sub: any) => (
-                  <div key={sub.id} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-accent/50 cursor-pointer" onClick={() => handleToggleSubtask(sub.id, sub.status)}>
-                    {sub.status === "Done" ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> : <Circle className="h-4 w-4 text-muted-foreground shrink-0" />}
-                    <span className={cn("text-sm flex-1", sub.status === "Done" && "line-through text-muted-foreground")}>{sub.title}</span>
+                  <div key={sub.id} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-accent/50">
+                    <button onClick={() => handleToggleSubtask(sub.id, sub.status)} className="shrink-0">
+                      {sub.status === "Done" ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
+                    </button>
+                    <button
+                      className={cn("text-sm flex-1 text-left truncate hover:underline", sub.status === "Done" && "line-through text-muted-foreground")}
+                      onClick={() => onNavigateToTask?.(sub.id)}
+                    >
+                      {sub.title}
+                    </button>
                     {sub.assignee && <span className="text-xs text-muted-foreground">{sub.assignee.name.split(" ")[0]}</span>}
                   </div>
                 ))}
               </div>
             )}
-            <div className="flex gap-2">
-              <Input placeholder="Add subtask..." value={subtaskTitle} onChange={(e) => setSubtaskTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAddSubtask()} className="h-8 text-sm" />
-              <Button size="sm" className="h-8 shrink-0" onClick={handleAddSubtask} disabled={!subtaskTitle.trim()}><Plus className="h-3 w-3" /></Button>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input placeholder="Add subtask..." value={subtaskTitle} onChange={(e) => setSubtaskTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { if (subtaskExpanded) handleAddSubtask(); else handleExpandSubtaskForm(); } }} className="h-8 text-sm" />
+                <Button size="sm" className="h-8 shrink-0" onClick={subtaskExpanded ? handleAddSubtask : handleExpandSubtaskForm} disabled={!subtaskTitle.trim()}>
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+              {subtaskExpanded && (
+                <div className="border rounded-md p-3 space-y-2 bg-muted/20">
+                  <Textarea
+                    placeholder="Description (optional)..."
+                    value={subtaskForm.description}
+                    onChange={(e) => setSubtaskForm(p => ({ ...p, description: e.target.value }))}
+                    rows={2}
+                    className="text-sm"
+                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <Select value={subtaskForm.type} onValueChange={v => setSubtaskForm(p => ({ ...p, type: v }))}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="My Action">My Action</SelectItem>
+                        <SelectItem value="Waiting On">Waiting On</SelectItem>
+                        <SelectItem value="Decision">Decision</SelectItem>
+                        <SelectItem value="Review">Review</SelectItem>
+                        <SelectItem value="Recurring">Recurring</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={subtaskForm.priority} onValueChange={v => setSubtaskForm(p => ({ ...p, priority: v }))}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Priority" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Critical">Critical</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="Low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={subtaskForm.status} onValueChange={v => setSubtaskForm(p => ({ ...p, status: v }))}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Not Started">Not Started</SelectItem>
+                        <SelectItem value="In Progress">In Progress</SelectItem>
+                        <SelectItem value="Done">Done</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Select value={subtaskForm.assigneeId || "none"} onValueChange={v => setSubtaskForm(p => ({ ...p, assigneeId: v === "none" ? "" : v }))}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Assignee" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Unassigned</SelectItem>
+                        {filteredUsers.map((u: any) => (
+                          <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="date"
+                      value={subtaskForm.dueDate}
+                      onChange={(e) => setSubtaskForm(p => ({ ...p, dueDate: e.target.value }))}
+                      className="h-7 text-xs"
+                    />
+                    <Select value={subtaskForm.workstreamId || "none"} onValueChange={v => setSubtaskForm(p => ({ ...p, workstreamId: v === "none" ? "" : v }))}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Workstream" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No workstream</SelectItem>
+                        {workstreams?.map((ws: any) => (
+                          <SelectItem key={ws.id} value={ws.id}>{ws.code} - {ws.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="h-7 text-xs" onClick={handleAddSubtask} disabled={!subtaskTitle.trim() || createTask.isPending}>
+                      Create Subtask
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelSubtaskForm}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

@@ -4,7 +4,7 @@ import { useTeamSummary } from "@/hooks/use-dashboard";
 import { useTasksByAssignee } from "@/hooks/use-tasks";
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword } from "@/hooks/use-workstreams";
 import { useDepartments } from "@/hooks/use-departments";
-import { useCreateAssignment, useDeleteAssignment } from "@/hooks/use-assignments";
+import { useCreateAssignment, useUpdateAssignment, useDeleteAssignment } from "@/hooks/use-assignments";
 import { useAuthStore } from "@/store/auth-store";
 import { canManageUsers, isSuperAdminOrED } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,16 +81,16 @@ export default function TeamPage() {
   const deleteUser = useDeleteUser();
   const resetPassword = useResetPassword();
   const createAssignment = useCreateAssignment();
+  const updateAssignment = useUpdateAssignment();
   const deleteAssignment = useDeleteAssignment();
 
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
+  const [editAssignments, setEditAssignments] = useState<any[]>([]);
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: "", email: "", role: "STAFF", position: "", departmentId: "" });
-  const [addingRoleFor, setAddingRoleFor] = useState<string | null>(null);
-  const [newRole, setNewRole] = useState({ departmentId: "", role: "STAFF", position: "" });
 
   // Confirm dialog state
   const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void }>({ open: false, title: "", description: "", onConfirm: () => {} });
@@ -110,12 +110,41 @@ export default function TeamPage() {
 
   const startEdit = (member: any) => {
     setEditingUser(member.id);
-    setEditForm({ name: member.name, email: member.email, role: member.role, position: member.position, departmentId: member.departmentId || "" });
+    setEditForm({ name: member.name, email: member.email, position: member.position || "" });
+    setEditAssignments(
+      (member.assignments || []).map((a: any) => ({
+        id: a.id,
+        departmentId: a.departmentId || "",
+        role: a.role,
+        position: a.position || "",
+        isPrimary: !!a.isPrimary,
+        _action: "existing" as const,
+      }))
+    );
   };
 
   const saveEdit = async () => {
     if (!editingUser) return;
+    const member = members.find((m: any) => m.id === editingUser);
+    // Save user fields
     await updateUser.mutateAsync({ id: editingUser, ...editForm });
+    // Process assignment changes
+    const origIds = new Set<string>((member?.assignments || []).map((a: any) => a.id));
+    for (const a of editAssignments) {
+      if (a._action === "new" && a.departmentId && a.role) {
+        await createAssignment.mutateAsync({ userId: editingUser, departmentId: a.departmentId, role: a.role, position: a.position || undefined, isPrimary: a.isPrimary || undefined });
+      } else if (a._action === "existing" && a.id) {
+        const orig = member?.assignments?.find((o: any) => o.id === a.id);
+        if (orig && (orig.departmentId !== a.departmentId || orig.role !== a.role || (orig.position || "") !== a.position || !!orig.isPrimary !== !!a.isPrimary)) {
+          await updateAssignment.mutateAsync({ userId: editingUser, id: a.id, departmentId: a.departmentId, role: a.role, position: a.position || undefined, isPrimary: a.isPrimary });
+        }
+        origIds.delete(a.id);
+      }
+    }
+    // Delete removed assignments
+    for (const id of origIds) {
+      await deleteAssignment.mutateAsync({ userId: editingUser, id });
+    }
     setEditingUser(null);
   };
 
@@ -133,25 +162,6 @@ export default function TeamPage() {
       description: "Deactivate this user? Their tasks will remain.",
       onConfirm: async () => {
         await deleteUser.mutateAsync(id);
-        setConfirmState(s => ({ ...s, open: false }));
-      },
-    });
-  };
-
-  const handleAddAssignment = async (userId: string) => {
-    if (!newRole.departmentId || !newRole.role) return;
-    await createAssignment.mutateAsync({ userId, ...newRole });
-    setAddingRoleFor(null);
-    setNewRole({ departmentId: "", role: "STAFF", position: "" });
-  };
-
-  const handleDeleteAssignment = (userId: string, assignmentId: string) => {
-    setConfirmState({
-      open: true,
-      title: "Remove Role",
-      description: "Remove this role assignment?",
-      onConfirm: async () => {
-        await deleteAssignment.mutateAsync({ userId, id: assignmentId });
         setConfirmState(s => ({ ...s, open: false }));
       },
     });
@@ -253,28 +263,55 @@ export default function TeamPage() {
                 <div className="space-y-2">
                   <Input placeholder="Name" value={editForm.name} onChange={e => setEditForm((p: any) => ({ ...p, name: e.target.value }))} />
                   <Input placeholder="Email" value={editForm.email} onChange={e => setEditForm((p: any) => ({ ...p, email: e.target.value }))} />
-                  <Input placeholder="Position" value={editForm.position} onChange={e => setEditForm((p: any) => ({ ...p, position: e.target.value }))} />
-                  <Select value={editForm.departmentId || "none"} onValueChange={v => setEditForm((p: any) => ({ ...p, departmentId: v === "none" ? "" : v }))}>
-                    <SelectTrigger><SelectValue placeholder="Department..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No Department</SelectItem>
-                      {departments?.map((d: any) => (
-                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={editForm.role} onValueChange={v => setEditForm((p: any) => ({ ...p, role: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {isSuperAdmin && <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>}
-                      {isED && <SelectItem value="ED">ED</SelectItem>}
-                      <SelectItem value="HOD">HOD</SelectItem>
-                      <SelectItem value="MANAGER">Manager</SelectItem>
-                      <SelectItem value="STAFF">Staff</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Input placeholder="Position (user-level)" value={editForm.position} onChange={e => setEditForm((p: any) => ({ ...p, position: e.target.value }))} />
+
+                  {/* Assignments section */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Role Assignments</label>
+                    {editAssignments.map((a, idx) => (
+                      <div key={a.id || `new-${idx}`} className="flex flex-wrap gap-1.5 items-center">
+                        <Select value={a.departmentId || "none"} onValueChange={v => setEditAssignments(prev => prev.map((x, i) => i === idx ? { ...x, departmentId: v === "none" ? "" : v } : x))}>
+                          <SelectTrigger className="h-7 text-xs w-[120px]"><SelectValue placeholder="Dept..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Select...</SelectItem>
+                            {departments?.map((d: any) => (
+                              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={a.role} onValueChange={v => setEditAssignments(prev => prev.map((x, i) => i === idx ? { ...x, role: v } : x))}>
+                          <SelectTrigger className="h-7 text-xs w-[100px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {isSuperAdmin && <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>}
+                            <SelectItem value="ED">ED</SelectItem>
+                            <SelectItem value="HOD">HOD</SelectItem>
+                            <SelectItem value="MANAGER">Manager</SelectItem>
+                            <SelectItem value="STAFF">Staff</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input placeholder="Position" className="h-7 text-xs w-[100px]" value={a.position} onChange={e => setEditAssignments(prev => prev.map((x, i) => i === idx ? { ...x, position: e.target.value } : x))} />
+                        <button
+                          className={cn("p-0.5 rounded", a.isPrimary ? "text-yellow-500" : "text-muted-foreground hover:text-yellow-500")}
+                          title={a.isPrimary ? "Primary role" : "Set as primary"}
+                          onClick={() => setEditAssignments(prev => prev.map((x, i) => ({ ...x, isPrimary: i === idx })))}
+                        >
+                          <Star className={cn("h-3.5 w-3.5", a.isPrimary && "fill-current")} />
+                        </button>
+                        <button className="p-0.5 text-muted-foreground hover:text-destructive" onClick={() => setEditAssignments(prev => prev.filter((_, i) => i !== idx))}>
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
+                      onClick={() => setEditAssignments(prev => [...prev, { id: null, departmentId: "", role: "STAFF", position: "", isPrimary: false, _action: "new" }])}
+                    >
+                      <Plus className="h-3 w-3" /> Add Role
+                    </button>
+                  </div>
+
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={saveEdit} disabled={updateUser.isPending}>
+                    <Button size="sm" onClick={saveEdit} disabled={updateUser.isPending || createAssignment.isPending || updateAssignment.isPending || deleteAssignment.isPending}>
                       <Check className="h-4 w-4 mr-1" /> Save
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setEditingUser(null)}>
@@ -299,7 +336,7 @@ export default function TeamPage() {
                       <p className="font-medium truncate">{member.name}</p>
                       <p className="text-xs text-muted-foreground">{member.position} · {member.department || member.dept?.name || "No Dept"}</p>
                     </div>
-                    <RoleBadge role={member.role} />
+                    <RoleBadge role={member.assignments?.find((a: any) => a.isPrimary)?.role || member.role} />
                   </div>
                   {/* Email + actions row */}
                   <div className="flex items-center justify-between mt-1.5">
@@ -328,7 +365,7 @@ export default function TeamPage() {
                     </div>
                   </div>
 
-                  {/* Assignments / Roles */}
+                  {/* Assignments / Roles (read-only display) */}
                   {member.assignments && member.assignments.length > 0 ? (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {member.assignments.map((a: any) => (
@@ -341,59 +378,12 @@ export default function TeamPage() {
                         >
                           {a.isPrimary && <Star className="h-2.5 w-2.5 fill-current" />}
                           {a.role} · {a.position || "\u2014"} · {a.department?.name || "\u2014"}
-                          {isED && (
-                            <button
-                              className="ml-0.5 hover:text-destructive"
-                              onClick={(e) => { e.stopPropagation(); handleDeleteAssignment(member.id, a.id); }}
-                            >
-                              <X className="h-2.5 w-2.5" />
-                            </button>
-                          )}
                         </span>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground mt-2">{member.role} · {member.position || "No position"}</p>
+                    <p className="text-xs text-muted-foreground mt-2">{member.assignments?.find((a: any) => a.isPrimary)?.role || member.role} · {member.position || "No position"}</p>
                   )}
-
-                  {/* Add role button (ED only) */}
-                  {isED && addingRoleFor === member.id ? (
-                    <div className="flex flex-wrap gap-2 mt-2 items-center" onClick={e => e.stopPropagation()}>
-                      <Select value={newRole.departmentId || "none"} onValueChange={v => setNewRole(p => ({ ...p, departmentId: v === "none" ? "" : v }))}>
-                        <SelectTrigger className="h-7 text-xs w-32"><SelectValue placeholder="Dept..." /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Select...</SelectItem>
-                          {departments?.map((d: any) => (
-                            <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select value={newRole.role} onValueChange={v => setNewRole(p => ({ ...p, role: v }))}>
-                        <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {isSuperAdmin && <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>}
-                          <SelectItem value="ED">ED</SelectItem>
-                          <SelectItem value="HOD">HOD</SelectItem>
-                          <SelectItem value="MANAGER">Manager</SelectItem>
-                          <SelectItem value="STAFF">Staff</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Input placeholder="Position" className="h-7 text-xs w-28" value={newRole.position} onChange={e => setNewRole(p => ({ ...p, position: e.target.value }))} />
-                      <Button size="sm" className="h-7 text-xs px-2" onClick={() => handleAddAssignment(member.id)} disabled={createAssignment.isPending}>
-                        <Check className="h-3 w-3" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setAddingRoleFor(null)}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : isED ? (
-                    <button
-                      className="text-[11px] text-primary hover:underline mt-1.5 flex items-center gap-0.5"
-                      onClick={(e) => { e.stopPropagation(); setAddingRoleFor(member.id); setNewRole({ departmentId: "", role: "STAFF", position: "" }); }}
-                    >
-                      <Plus className="h-3 w-3" /> Add Role
-                    </button>
-                  ) : null}
 
                   <div className="flex items-center gap-4 mt-2 text-sm">
                     <span><span className="font-medium">{member.activeTasks}</span> active</span>
@@ -437,6 +427,7 @@ export default function TeamPage() {
         taskId={selectedTaskId}
         open={!!selectedTaskId}
         onClose={handleClosePanel}
+        onNavigateToTask={handleSelectTask}
       />
 
       {/* Confirm dialog */}

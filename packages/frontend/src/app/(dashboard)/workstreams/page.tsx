@@ -186,6 +186,7 @@ export default function WorkstreamsPage() {
         taskId={selectedTaskId}
         open={!!selectedTaskId}
         onClose={handleClosePanel}
+        onNavigateToTask={handleSelectTask}
       />
 
       <ConfirmDialog

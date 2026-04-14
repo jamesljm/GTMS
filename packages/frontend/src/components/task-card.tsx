@@ -4,7 +4,7 @@ import { format, formatDistanceToNow, isPast, isToday } from "date-fns";
 import { PriorityBadge } from "./priority-badge";
 import { StatusBadge } from "./status-badge";
 import { WorkstreamBadge } from "./workstream-badge";
-import { Paperclip, CheckCircle2 } from "lucide-react";
+import { Paperclip, CheckCircle2, Circle, CornerDownRight } from "lucide-react";
 import { getAttachmentUrl } from "@/hooks/use-attachments";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +55,8 @@ interface TaskCardProps {
     waitingOnWhom?: string | null;
     workstream?: { code: string; name: string; color: string } | null;
     assignee?: { id: string; name: string } | null;
-    subtasks?: { id: string; title: string; status: string }[];
+    parent?: { id: string; title: string } | null;
+    subtasks?: { id: string; title: string; status: string; assignee?: { id: string; name: string } | null }[];
     attachments?: { id: string; filename: string; mimeType: string }[];
     _count?: { notes: number; subtasks: number; attachments: number };
   };
@@ -138,6 +139,15 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
+          {task.parent && (
+            <button
+              className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-primary truncate max-w-full"
+              onClick={(e) => { e.stopPropagation(); onClick?.(task.parent!.id); }}
+            >
+              <CornerDownRight className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{task.parent.title}</span>
+            </button>
+          )}
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-muted-foreground font-mono shrink-0">{task.id.slice(0, 6)}</span>
             <p className={cn("text-sm font-medium", task.status === "Done" && "line-through text-muted-foreground", compact ? "truncate" : "")}>
@@ -202,6 +212,35 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Subtask title list (non-compact only) */}
+      {!compact && !ultraCompact && task.subtasks && task.subtasks.length > 0 && (
+        <div className="mt-1.5 space-y-0.5">
+          {task.subtasks.slice(0, 3).map((sub) => (
+            <button
+              key={sub.id}
+              className="flex items-center gap-1.5 w-full text-left px-1 py-0.5 rounded hover:bg-accent/50 group"
+              onClick={(e) => { e.stopPropagation(); onClick?.(sub.id); }}
+            >
+              {sub.status === "Done"
+                ? <CheckCircle2 className="h-3 w-3 text-green-600 shrink-0" />
+                : <Circle className="h-3 w-3 text-muted-foreground shrink-0" />
+              }
+              <span className={cn("text-xs truncate flex-1", sub.status === "Done" && "line-through text-muted-foreground")}>
+                {sub.title}
+              </span>
+              {sub.assignee && (
+                <span className={cn("h-4 w-4 rounded-full flex items-center justify-center text-white text-[8px] font-medium shrink-0", getAvatarColor(sub.assignee.name))}>
+                  {sub.assignee.name.charAt(0)}
+                </span>
+              )}
+            </button>
+          ))}
+          {task.subtasks.length > 3 && (
+            <span className="text-[10px] text-muted-foreground pl-1">+{task.subtasks.length - 3} more</span>
           )}
         </div>
       )}

@@ -9,9 +9,10 @@ interface TaskDetailPanelProps {
   open: boolean;
   onClose: () => void;
   mode?: "overlay" | "pinned";
+  onNavigateToTask?: (taskId: string) => void;
 }
 
-export function TaskDetailPanel({ taskId, open, onClose, mode = "overlay" }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ taskId, open, onClose, mode = "overlay", onNavigateToTask }: TaskDetailPanelProps) {
   if (mode === "pinned") {
     if (!taskId) {
       return (
@@ -20,7 +21,7 @@ export function TaskDetailPanel({ taskId, open, onClose, mode = "overlay" }: Tas
         </div>
       );
     }
-    return <TaskDetailContent taskId={taskId} onClose={onClose} inline />;
+    return <TaskDetailContent taskId={taskId} onClose={onClose} inline onNavigateToTask={onNavigateToTask} />;
   }
 
   return (
@@ -30,7 +31,7 @@ export function TaskDetailPanel({ taskId, open, onClose, mode = "overlay" }: Tas
           <SheetTitle>Task Details</SheetTitle>
           <SheetDescription>View and edit task details</SheetDescription>
         </SheetHeader>
-        {taskId && <TaskDetailContent taskId={taskId} onClose={onClose} />}
+        {taskId && <TaskDetailContent taskId={taskId} onClose={onClose} onNavigateToTask={onNavigateToTask} />}
       </SheetContent>
     </Sheet>
   );
