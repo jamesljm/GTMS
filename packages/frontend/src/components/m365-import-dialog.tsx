@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,14 +36,17 @@ export function M365ImportDialog({ open, onOpenChange }: { open: boolean; onOpen
   const [importResults, setImportResults] = useState<ImportResponse | null>(null);
 
   // Fetch users when dialog opens
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) {
+  useEffect(() => {
+    if (open) {
       setState("browse");
       setSearch("");
       setSelected(new Set());
       setImportResults(null);
       refetch();
     }
+  }, [open]);
+
+  const handleOpenChange = (nextOpen: boolean) => {
     onOpenChange(nextOpen);
   };
 
