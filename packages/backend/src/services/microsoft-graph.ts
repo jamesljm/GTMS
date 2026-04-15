@@ -73,7 +73,9 @@ export async function fetchM365Users(): Promise<M365User[]> {
     if (!res.ok) {
       const text = await res.text();
       console.error('MS Graph API error:', res.status, text);
-      throw new AppError(502, 'Failed to fetch users from Microsoft 365');
+      let detail = '';
+      try { const e = JSON.parse(text); detail = ': ' + (e.error?.message || text.substring(0, 200)); } catch { detail = ': ' + text.substring(0, 200); }
+      throw new AppError(502, 'Failed to fetch users from Microsoft 365' + detail);
     }
 
     const data = await res.json() as { value: M365User[]; '@odata.nextLink'?: string };
