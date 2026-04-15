@@ -12,6 +12,7 @@ interface FilterBarProps {
   setSearch: (s: string) => void;
   workstreams: any[];
   users: any[];
+  departments?: any[];
 }
 
 const statusOptions = [
@@ -42,7 +43,7 @@ function parseMulti(val: any): string[] {
   return String(val).split(",").filter(Boolean);
 }
 
-export function FilterBar({ filters, setFilter, setMultiFilter, search, setSearch, workstreams, users }: FilterBarProps) {
+export function FilterBar({ filters, setFilter, setMultiFilter, search, setSearch, workstreams, users, departments }: FilterBarProps) {
   const handleMulti = (key: string, values: string[]) => {
     if (setMultiFilter) {
       setMultiFilter(key, values);
@@ -66,6 +67,12 @@ export function FilterBar({ filters, setFilter, setMultiFilter, search, setSearc
   const initiatorOptions = (users || []).map((u: any) => ({
     value: u.id,
     label: u.name,
+  }));
+
+  const deptOptions = (departments || []).map((d: any) => ({
+    value: d.id,
+    label: `${d.code} - ${d.name}`,
+    color: d.color,
   }));
 
   return (
@@ -97,6 +104,14 @@ export function FilterBar({ filters, setFilter, setMultiFilter, search, setSearc
         selected={parseMulti(filters.workstreamId)}
         onChange={(v) => handleMulti("workstreamId", v)}
       />
+      {deptOptions.length > 0 && (
+        <MultiSelectFilter
+          label="Department"
+          options={deptOptions}
+          selected={parseMulti(filters.departmentId)}
+          onChange={(v) => handleMulti("departmentId", v)}
+        />
+      )}
       <MultiSelectFilter
         label="Assignee"
         options={assigneeOptions}

@@ -17,6 +17,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   const workstreams = await prisma.workstream.findMany({
     orderBy: { sortOrder: 'asc' },
     include: {
+      department: { select: { id: true, name: true, code: true, color: true } },
       _count: { select: { tasks: true } },
     },
   });
@@ -31,6 +32,7 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   const workstream = await prisma.workstream.findUnique({
     where: { id: req.params.id },
     include: {
+      department: { select: { id: true, name: true, code: true, color: true } },
       tasks: {
         where: rbacFilter,
         include: {
@@ -48,7 +50,7 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // POST / - create workstream (ED only)
 router.post('/', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
-  const { code, name, description, color, sortOrder } = req.body;
+  const { code, name, description, color, sortOrder, departmentId } = req.body;
   if (!code || !name) throw new AppError(400, 'code and name are required');
 
   const maxSort = await prisma.workstream.aggregate({ _max: { sortOrder: true } });
@@ -59,6 +61,10 @@ router.post('/', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Reques
       description: description || null,
       color: color || '#6366f1',
       sortOrder: sortOrder ?? (maxSort._max.sortOrder ?? 0) + 1,
+      departmentId: departmentId || null,
+    },
+    include: {
+      department: { select: { id: true, name: true, code: true, color: true } },
     },
   });
 
@@ -67,7 +73,7 @@ router.post('/', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Reques
 
 // PATCH /:id - update workstream (ED only)
 router.patch('/:id', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
-  const { code, name, description, color, sortOrder } = req.body;
+  const { code, name, description, color, sortOrder, departmentId } = req.body;
   const workstream = await prisma.workstream.update({
     where: { id: req.params.id },
     data: {
@@ -76,6 +82,10 @@ router.patch('/:id', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Re
       ...(description !== undefined && { description }),
       ...(color !== undefined && { color }),
       ...(sortOrder !== undefined && { sortOrder }),
+      ...(departmentId !== undefined && { departmentId: departmentId || null }),
+    },
+    include: {
+      department: { select: { id: true, name: true, code: true, color: true } },
     },
   });
 

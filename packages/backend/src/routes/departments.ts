@@ -19,7 +19,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     orderBy: { sortOrder: 'asc' },
     include: {
       head: { select: { id: true, name: true, email: true, role: true, position: true } },
-      _count: { select: { members: true } },
+      _count: { select: { members: true, workstreams: true } },
     },
   });
   res.json(departments);
@@ -39,6 +39,10 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
       assignments: {
         include: { user: { select: { id: true, name: true, email: true, isActive: true } } },
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      },
+      workstreams: {
+        select: { id: true, code: true, name: true, color: true, sortOrder: true, _count: { select: { tasks: true } } },
+        orderBy: { sortOrder: 'asc' },
       },
     },
   });

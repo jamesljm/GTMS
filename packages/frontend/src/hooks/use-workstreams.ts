@@ -26,10 +26,11 @@ export function useUsers() {
 export function useCreateWorkstream() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { code: string; name: string; color?: string; description?: string }) =>
+    mutationFn: (data: { code: string; name: string; color?: string; description?: string; departmentId?: string | null }) =>
       api.post("/workstreams", data).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workstreams"] });
+      qc.invalidateQueries({ queryKey: ["departments"] });
     },
   });
 }
@@ -37,10 +38,11 @@ export function useCreateWorkstream() {
 export function useUpdateWorkstream() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; code?: string; name?: string; color?: string; description?: string }) =>
+    mutationFn: ({ id, ...data }: { id: string; code?: string; name?: string; color?: string; description?: string; departmentId?: string | null }) =>
       api.patch(`/workstreams/${id}`, data).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workstreams"] });
+      qc.invalidateQueries({ queryKey: ["departments"] });
     },
   });
 }

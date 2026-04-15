@@ -6,6 +6,7 @@ import { TaskDetailPanel } from "@/components/task-detail-panel";
 import { FilterBar } from "@/components/views/filter-bar";
 import { useDashboardStats, useDashboardToday, useDashboardWaiting, useDashboardCritical, useWorkstreamSummary } from "@/hooks/use-dashboard";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
+import { useDepartments } from "@/hooks/use-departments";
 import { filterTasks } from "@/lib/filter-tasks";
 import { AlertTriangle, Clock, Eye, ListTodo, XCircle } from "lucide-react";
 import Link from "next/link";
@@ -19,6 +20,7 @@ export default function DashboardPage() {
   const { data: workstreamSummary } = useWorkstreamSummary();
   const { data: workstreams } = useWorkstreams();
   const { data: users } = useUsers();
+  const { data: departments } = useDepartments();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [filters, setFilters] = useState<Record<string, any>>({});
   const [search, setSearch] = useState("");
@@ -129,6 +131,7 @@ export default function DashboardPage() {
         setSearch={setSearch}
         workstreams={workstreams || []}
         users={users || []}
+        departments={departments || []}
       />
 
       <div className="grid lg:grid-cols-2 gap-6">

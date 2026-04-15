@@ -15,6 +15,7 @@ export function filterTasks(tasks: any[], filters: Record<string, any>, search: 
   const statusFilter = parseMulti(filters.status);
   const priorityFilter = parseMulti(filters.priority);
   const wsFilter = parseMulti(filters.workstreamId);
+  const deptFilter = parseMulti(filters.departmentId);
   const assigneeFilter = parseMulti(filters.assigneeId);
   const initiatorFilter = parseMulti(filters.createdById);
   const acceptFilter = parseMulti(filters.acceptanceStatus);
@@ -24,6 +25,10 @@ export function filterTasks(tasks: any[], filters: Record<string, any>, search: 
     if (statusFilter.length > 0 && !statusFilter.includes(task.status)) return false;
     if (priorityFilter.length > 0 && !priorityFilter.includes(task.priority)) return false;
     if (wsFilter.length > 0 && !wsFilter.includes(task.workstreamId)) return false;
+    if (deptFilter.length > 0) {
+      const taskDeptId = task.workstream?.departmentId || task.workstream?.department?.id;
+      if (!taskDeptId || !deptFilter.includes(taskDeptId)) return false;
+    }
     if (assigneeFilter.length > 0 && !assigneeFilter.includes(task.assigneeId)) return false;
     if (initiatorFilter.length > 0 && !initiatorFilter.includes(task.createdById)) return false;
     if (acceptFilter.length > 0) {

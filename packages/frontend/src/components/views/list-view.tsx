@@ -5,7 +5,7 @@ import { TaskCard } from "@/components/task-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-type GroupBy = "none" | "workstream" | "assignee" | "priority";
+type GroupBy = "none" | "workstream" | "assignee" | "priority" | "department";
 
 interface ListViewProps {
   tasks: any[];
@@ -60,6 +60,11 @@ export function ListView({ tasks, pagination, isLoading, selectedTaskId, onSelec
         key = task.workstream?.code || "none";
         label = task.workstream ? `${task.workstream.code} - ${task.workstream.name}` : "No Workstream";
         color = task.workstream?.color;
+      } else if (groupBy === "department") {
+        const dept = task.workstream?.department;
+        key = dept?.id || "none";
+        label = dept ? `${dept.code} - ${dept.name}` : "No Department";
+        color = dept?.color;
       } else if (groupBy === "assignee") {
         key = task.assignee?.id || "unassigned";
         label = task.assignee?.name || "Unassigned";

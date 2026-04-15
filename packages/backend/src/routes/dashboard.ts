@@ -68,7 +68,7 @@ router.get('/today', asyncHandler(async (req: Request, res: Response) => {
       ],
     },
     include: {
-      workstream: true,
+      workstream: { include: { department: { select: { id: true, name: true, code: true, color: true } } } },
       assignee: { select: { id: true, name: true, email: true } },
     },
     orderBy: [{ priority: 'asc' }, { dueDate: 'asc' }],
@@ -93,7 +93,7 @@ router.get('/waiting', asyncHandler(async (req: Request, res: Response) => {
       ],
     },
     include: {
-      workstream: true,
+      workstream: { include: { department: { select: { id: true, name: true, code: true, color: true } } } },
       assignee: { select: { id: true, name: true, email: true } },
     },
     orderBy: { dueDate: 'asc' },
@@ -120,7 +120,7 @@ router.get('/critical', asyncHandler(async (req: Request, res: Response) => {
       ],
     },
     include: {
-      workstream: true,
+      workstream: { include: { department: { select: { id: true, name: true, code: true, color: true } } } },
       assignee: { select: { id: true, name: true, email: true } },
     },
     orderBy: { dueDate: 'asc' },
@@ -136,6 +136,7 @@ router.get('/workstream-summary', asyncHandler(async (req: Request, res: Respons
   const workstreams = await prisma.workstream.findMany({
     orderBy: { sortOrder: 'asc' },
     include: {
+      department: { select: { id: true, name: true, code: true } },
       _count: {
         select: { tasks: true },
       },
@@ -151,6 +152,9 @@ router.get('/workstream-summary', asyncHandler(async (req: Request, res: Respons
     code: ws.code,
     name: ws.name,
     color: ws.color,
+    departmentId: ws.departmentId,
+    departmentName: ws.department?.name || null,
+    departmentCode: ws.department?.code || null,
     totalTasks: ws._count.tasks,
     activeTasks: ws.tasks.length,
     criticalTasks: ws.tasks.filter(t => t.priority === 'Critical').length,

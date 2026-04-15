@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Pencil, Trash2, X, Check, Users, Crown, Star } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Check, Users, Crown, Star, Layers } from "lucide-react";
 import { toast } from "sonner";
 
 export default function DepartmentsPage() {
@@ -197,6 +197,9 @@ export default function DepartmentsPage() {
                     <span className="flex items-center gap-1">
                       <Users className="h-3 w-3" /> {dept._count?.members || 0} members
                     </span>
+                    <span className="flex items-center gap-1">
+                      <Layers className="h-3 w-3" /> {dept._count?.workstreams || 0} workstreams
+                    </span>
                     {dept.head && (
                       <span className="flex items-center gap-1">
                         <Crown className="h-3 w-3" /> {dept.head.name}
@@ -287,6 +290,27 @@ function DepartmentMembers({ deptId }: { deptId: string }) {
     <Card>
       <CardContent className="p-4">
         <h3 className="font-medium mb-3">{dept.name} - Members ({allMembers.length})</h3>
+
+        {/* Linked workstreams */}
+        {dept.workstreams?.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Linked Workstreams</p>
+            <div className="flex flex-wrap gap-2">
+              {dept.workstreams.map((ws: any) => (
+                <span
+                  key={ws.id}
+                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border"
+                  style={{ borderColor: ws.color, color: ws.color }}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ws.color }} />
+                  {ws.code} - {ws.name}
+                  <span className="text-muted-foreground ml-1">({ws._count?.tasks || 0} tasks)</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {allMembers.length > 0 ? (
           <div className="space-y-2">
             {allMembers.map((m: any) => (

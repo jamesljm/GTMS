@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useTasks, useInfiniteTasks } from "@/hooks/use-tasks";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
+import { useDepartments } from "@/hooks/use-departments";
 import { useUIStore } from "@/store/ui-store";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,7 +23,7 @@ import { CalendarView } from "@/components/views/calendar-view";
 import { cn } from "@/lib/utils";
 
 type ViewType = "list" | "kanban" | "gantt" | "calendar";
-type GroupBy = "none" | "workstream" | "assignee" | "priority";
+type GroupBy = "none" | "workstream" | "assignee" | "priority" | "department";
 
 export default function TasksPage() {
   return (
@@ -90,6 +91,7 @@ function TasksContent() {
 
   const { data: workstreams } = useWorkstreams();
   const { data: users } = useUsers();
+  const { data: departments } = useDepartments();
 
   const isPinned = detailPanelMode === "pinned";
 
@@ -285,6 +287,7 @@ function TasksContent() {
         setSearch={setSearch}
         workstreams={workstreams || []}
         users={users || []}
+        departments={departments || []}
       />
 
       {/* Sort & Group controls for list view */}
@@ -324,6 +327,7 @@ function TasksContent() {
               <SelectContent>
                 <SelectItem value="none">No Grouping</SelectItem>
                 <SelectItem value="workstream">By Workstream</SelectItem>
+                <SelectItem value="department">By Department</SelectItem>
                 <SelectItem value="assignee">By Assignee</SelectItem>
                 <SelectItem value="priority">By Priority</SelectItem>
               </SelectContent>

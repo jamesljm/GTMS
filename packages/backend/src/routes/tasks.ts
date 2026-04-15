@@ -16,7 +16,7 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
 }
 
 const taskInclude = {
-  workstream: true,
+  workstream: { include: { department: { select: { id: true, name: true, code: true, color: true } } } },
   assignee: { select: { id: true, name: true, email: true, role: true, position: true, departmentId: true, dept: { select: { id: true, name: true } } } },
   createdBy: { select: { id: true, name: true, email: true } },
   parent: { select: { id: true, title: true } },
@@ -216,7 +216,7 @@ router.get('/by-assignee', asyncHandler(async (req: Request, res: Response) => {
   const tasks = await prisma.task.findMany({
     where: { AND: [rbacFilter, { status: { notIn: ['Done', 'Cancelled'] } }] },
     include: {
-      workstream: true,
+      workstream: { include: { department: { select: { id: true, name: true, code: true, color: true } } } },
       assignee: {
         select: { id: true, name: true, email: true, role: true, position: true, departmentId: true, dept: { select: { id: true, name: true } } },
       },

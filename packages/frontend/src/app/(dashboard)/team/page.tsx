@@ -470,6 +470,7 @@ export default function TeamPage() {
           setSearch={setSearchFilter}
           workstreams={workstreamsData || []}
           users={allUsers || []}
+          departments={departments || []}
         />
       )}
 

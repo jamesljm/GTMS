@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ArrowLeft, Plus, Trash2, Users } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Users, Building2 } from "lucide-react";
+import { useDepartment } from "@/hooks/use-departments";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -39,8 +40,16 @@ export default function WorkstreamMembersPage() {
   const [selectedRole, setSelectedRole] = useState("STAFF");
   const [confirmState, setConfirmState] = useState<{ open: boolean; userId: string; name: string }>({ open: false, userId: "", name: "" });
 
+  const deptId = workstream?.departmentId || "";
+  const { data: deptDetail } = useDepartment(deptId);
+
   const memberUserIds = new Set((members || []).map((m: any) => m.userId));
   const availableUsers = (allUsers || []).filter((u: any) => !memberUserIds.has(u.id) && u.isActive !== false);
+
+  // Partition: department members first, then others
+  const deptMemberIds = new Set((deptDetail?.members || []).map((m: any) => m.id));
+  const deptAvailable = deptId ? availableUsers.filter((u: any) => deptMemberIds.has(u.id)) : [];
+  const otherAvailable = deptId ? availableUsers.filter((u: any) => !deptMemberIds.has(u.id)) : availableUsers;
 
   const handleAdd = async () => {
     if (!selectedUserId) return;
@@ -117,7 +126,24 @@ export default function WorkstreamMembersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none" disabled>Select user...</SelectItem>
-                  {availableUsers.map((u: any) => (
+                  {deptAvailable.length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                        <Building2 className="h-3 w-3" /> {deptDetail?.name || "Department"} Members
+                      </div>
+                      {deptAvailable.map((u: any) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name} ({u.email})
+                        </SelectItem>
+                      ))}
+                      {otherAvailable.length > 0 && (
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-1.5">
+                          Other Users
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {otherAvailable.map((u: any) => (
                     <SelectItem key={u.id} value={u.id}>
                       {u.name} ({u.email})
                     </SelectItem>
