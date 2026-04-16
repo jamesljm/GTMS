@@ -34,7 +34,7 @@ export default function WorkstreamsPage() {
   const [editingWs, setEditingWs] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [showAddWs, setShowAddWs] = useState(false);
-  const [newWs, setNewWs] = useState({ code: "", name: "", color: "#6366f1", departmentId: "" });
+  const [newWs, setNewWs] = useState({ code: "", name: "", color: "#6366f1", departmentId: "", addDeptMembers: true });
   const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void }>({ open: false, title: "", description: "", onConfirm: () => {} });
   const { data: users } = useUsers();
   const { data: departments } = useDepartments();
@@ -79,21 +79,39 @@ export default function WorkstreamsPage() {
 
   const startEdit = (ws: any) => {
     setEditingWs(ws.id);
-    setEditForm({ code: ws.code, name: ws.name, color: ws.color || "#6366f1", departmentId: ws.departmentId || "" });
+    setEditForm({ code: ws.code, name: ws.name, color: ws.color || "#6366f1", departmentId: ws.departmentId || "", origDeptId: ws.departmentId || "", addDeptMembers: false });
   };
 
   const saveEdit = async () => {
     if (!editingWs) return;
-    const { departmentId, ...rest } = editForm;
-    await updateWorkstream.mutateAsync({ id: editingWs, ...rest, departmentId: departmentId || null });
+    const { departmentId, origDeptId, addDeptMembers, ...rest } = editForm;
+    const deptChanged = departmentId && departmentId !== origDeptId;
+    const result = await updateWorkstream.mutateAsync({
+      id: editingWs,
+      ...rest,
+      departmentId: departmentId || null,
+      addDepartmentMembers: addDeptMembers && !!deptChanged,
+    });
+    if (result._membersAdded > 0) {
+      toast.success(`${result._membersAdded} department members added.`);
+    }
     setEditingWs(null);
   };
 
   const handleAddWs = async () => {
     if (!newWs.code || !newWs.name) return;
-    const { departmentId, ...rest } = newWs;
-    await createWorkstream.mutateAsync({ ...rest, departmentId: departmentId || null });
-    setNewWs({ code: "", name: "", color: "#6366f1", departmentId: "" });
+    const { departmentId, addDeptMembers, ...rest } = newWs;
+    const result = await createWorkstream.mutateAsync({
+      ...rest,
+      departmentId: departmentId || null,
+      addDepartmentMembers: addDeptMembers && !!departmentId,
+    });
+    if (result._membersAdded > 0) {
+      toast.success(`Workstream created. ${result._membersAdded} department members added.`);
+    } else {
+      toast.success("Workstream created.");
+    }
+    setNewWs({ code: "", name: "", color: "#6366f1", departmentId: "", addDeptMembers: true });
     setShowAddWs(false);
   };
 
@@ -178,7 +196,7 @@ export default function WorkstreamsPage() {
               <Input placeholder="Code (e.g. MKT)" className="w-24" value={newWs.code} onChange={e => setNewWs(p => ({ ...p, code: e.target.value }))} />
               <Input placeholder="Name" className="flex-1 min-w-[150px]" value={newWs.name} onChange={e => setNewWs(p => ({ ...p, name: e.target.value }))} />
               <input type="color" value={newWs.color} onChange={e => setNewWs(p => ({ ...p, color: e.target.value }))} className="w-8 h-8 rounded cursor-pointer" />
-              <Select value={newWs.departmentId || "none"} onValueChange={v => setNewWs(p => ({ ...p, departmentId: v === "none" ? "" : v }))}>
+              <Select value={newWs.departmentId || "none"} onValueChange={v => setNewWs(p => ({ ...p, departmentId: v === "none" ? "" : v, addDeptMembers: v !== "none" }))}>
                 <SelectTrigger className="w-[180px]"><SelectValue placeholder="Department..." /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No Department</SelectItem>
@@ -192,6 +210,12 @@ export default function WorkstreamsPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {newWs.departmentId && (
+                <label className="flex items-center gap-1.5 text-xs whitespace-nowrap cursor-pointer">
+                  <input type="checkbox" checked={newWs.addDeptMembers} onChange={e => setNewWs(p => ({ ...p, addDeptMembers: e.target.checked }))} className="rounded" />
+                  Add dept members
+                </label>
+              )}
               <Button size="sm" onClick={handleAddWs} disabled={createWorkstream.isPending}>
                 <Check className="h-4 w-4 mr-1" /> Save
               </Button>
@@ -330,7 +354,7 @@ function WorkstreamCard({ ws, expanded, toggleExpand, editingWs, editForm, setEd
               <Input placeholder="Code" className="w-20" value={editForm.code} onChange={(e: any) => setEditForm((p: any) => ({ ...p, code: e.target.value }))} />
               <Input placeholder="Name" className="flex-1 min-w-[120px]" value={editForm.name} onChange={(e: any) => setEditForm((p: any) => ({ ...p, name: e.target.value }))} />
               <input type="color" value={editForm.color} onChange={(e: any) => setEditForm((p: any) => ({ ...p, color: e.target.value }))} className="w-8 h-8 rounded cursor-pointer" />
-              <Select value={editForm.departmentId || "none"} onValueChange={(v: string) => setEditForm((p: any) => ({ ...p, departmentId: v === "none" ? "" : v }))}>
+              <Select value={editForm.departmentId || "none"} onValueChange={(v: string) => setEditForm((p: any) => ({ ...p, departmentId: v === "none" ? "" : v, addDeptMembers: v !== "none" && v !== p.origDeptId }))}>
                 <SelectTrigger className="w-[160px]"><SelectValue placeholder="Department..." /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No Department</SelectItem>
@@ -339,6 +363,12 @@ function WorkstreamCard({ ws, expanded, toggleExpand, editingWs, editForm, setEd
                   ))}
                 </SelectContent>
               </Select>
+              {editForm.departmentId && editForm.departmentId !== editForm.origDeptId && (
+                <label className="flex items-center gap-1.5 text-xs whitespace-nowrap cursor-pointer">
+                  <input type="checkbox" checked={editForm.addDeptMembers} onChange={(e: any) => setEditForm((p: any) => ({ ...p, addDeptMembers: e.target.checked }))} className="rounded" />
+                  Add dept members
+                </label>
+              )}
               <Button size="sm" onClick={saveEdit} disabled={updateWorkstream.isPending}>
                 <Check className="h-4 w-4" />
               </Button>

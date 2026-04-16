@@ -50,7 +50,7 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // POST / - create workstream (ED only)
 router.post('/', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
-  const { code, name, description, color, sortOrder, departmentId } = req.body;
+  const { code, name, description, color, sortOrder, departmentId, addDepartmentMembers } = req.body;
   if (!code || !name) throw new AppError(400, 'code and name are required');
 
   const maxSort = await prisma.workstream.aggregate({ _max: { sortOrder: true } });
@@ -68,12 +68,27 @@ router.post('/', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Reques
     },
   });
 
-  res.status(201).json(workstream);
+  let _membersAdded = 0;
+  if (addDepartmentMembers && departmentId) {
+    const deptUsers = await prisma.user.findMany({
+      where: { departmentId, isActive: true },
+      select: { id: true },
+    });
+    if (deptUsers.length > 0) {
+      const result = await prisma.workstreamMember.createMany({
+        data: deptUsers.map(u => ({ userId: u.id, workstreamId: workstream.id, role: 'STAFF' })),
+        skipDuplicates: true,
+      });
+      _membersAdded = result.count;
+    }
+  }
+
+  res.status(201).json({ ...workstream, _membersAdded });
 }));
 
 // PATCH /:id - update workstream (ED only)
 router.patch('/:id', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
-  const { code, name, description, color, sortOrder, departmentId } = req.body;
+  const { code, name, description, color, sortOrder, departmentId, addDepartmentMembers } = req.body;
   const workstream = await prisma.workstream.update({
     where: { id: req.params.id },
     data: {
@@ -89,7 +104,22 @@ router.patch('/:id', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Re
     },
   });
 
-  res.json(workstream);
+  let _membersAdded = 0;
+  if (addDepartmentMembers && departmentId) {
+    const deptUsers = await prisma.user.findMany({
+      where: { departmentId, isActive: true },
+      select: { id: true },
+    });
+    if (deptUsers.length > 0) {
+      const result = await prisma.workstreamMember.createMany({
+        data: deptUsers.map(u => ({ userId: u.id, workstreamId: workstream.id, role: 'STAFF' })),
+        skipDuplicates: true,
+      });
+      _membersAdded = result.count;
+    }
+  }
+
+  res.json({ ...workstream, _membersAdded });
 }));
 
 // DELETE /:id - delete workstream (ED only, only if no tasks)

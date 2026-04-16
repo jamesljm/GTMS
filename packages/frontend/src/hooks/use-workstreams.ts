@@ -26,11 +26,12 @@ export function useUsers() {
 export function useCreateWorkstream() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { code: string; name: string; color?: string; description?: string; departmentId?: string | null }) =>
+    mutationFn: (data: { code: string; name: string; color?: string; description?: string; departmentId?: string | null; addDepartmentMembers?: boolean }) =>
       api.post("/workstreams", data).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workstreams"] });
       qc.invalidateQueries({ queryKey: ["departments"] });
+      qc.invalidateQueries({ queryKey: ["workstream-members"] });
     },
   });
 }
@@ -38,11 +39,12 @@ export function useCreateWorkstream() {
 export function useUpdateWorkstream() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; code?: string; name?: string; color?: string; description?: string; departmentId?: string | null }) =>
+    mutationFn: ({ id, ...data }: { id: string; code?: string; name?: string; color?: string; description?: string; departmentId?: string | null; addDepartmentMembers?: boolean }) =>
       api.patch(`/workstreams/${id}`, data).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workstreams"] });
       qc.invalidateQueries({ queryKey: ["departments"] });
+      qc.invalidateQueries({ queryKey: ["workstream-members"] });
     },
   });
 }

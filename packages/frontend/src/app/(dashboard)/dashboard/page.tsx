@@ -4,11 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TaskCard } from "@/components/task-card";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
 import { FilterBar } from "@/components/views/filter-bar";
-import { useDashboardStats, useDashboardToday, useDashboardWaiting, useDashboardCritical, useWorkstreamSummary } from "@/hooks/use-dashboard";
+import { useDashboardStats, useDashboardToday, useDashboardWaiting, useDashboardCritical, useWorkstreamSummary, useDepartmentSummary } from "@/hooks/use-dashboard";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
 import { useDepartments } from "@/hooks/use-departments";
 import { filterTasks } from "@/lib/filter-tasks";
-import { AlertTriangle, Clock, Eye, ListTodo, XCircle } from "lucide-react";
+import { AlertTriangle, Building2, Clock, Eye, ListTodo, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useState, useCallback } from "react";
 
@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const { data: waitingTasks } = useDashboardWaiting();
   const { data: criticalTasks } = useDashboardCritical();
   const { data: workstreamSummary } = useWorkstreamSummary();
+  const { data: departmentSummary } = useDepartmentSummary();
   const { data: workstreams } = useWorkstreams();
   const { data: users } = useUsers();
   const { data: departments } = useDepartments();
@@ -213,6 +214,41 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* By Department */}
+        {departmentSummary?.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Building2 className="h-4 w-4" /> By Department
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {departmentSummary.map((dept: any) => (
+                  <Link
+                    key={dept.id}
+                    href={`/tasks?departmentId=${dept.id}`}
+                    className="flex items-center justify-between p-2 rounded-md hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: dept.color }} />
+                      <span className="text-sm font-medium">{dept.code}</span>
+                      <span className="text-sm text-muted-foreground hidden sm:inline">{dept.name}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-muted-foreground">{dept.workstreamCount} ws</span>
+                      {dept.criticalTasks > 0 && (
+                        <span className="text-red-600 font-medium">{dept.criticalTasks} critical</span>
+                      )}
+                      <span className="text-muted-foreground">{dept.totalTasks} active</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Task detail panel */}

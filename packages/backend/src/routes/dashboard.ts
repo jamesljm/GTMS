@@ -164,6 +164,48 @@ router.get('/workstream-summary', asyncHandler(async (req: Request, res: Respons
   res.json(summary);
 }));
 
+// GET /department-summary - task counts rolled up by department
+router.get('/department-summary', asyncHandler(async (req: Request, res: Response) => {
+  const now = new Date();
+  const rbacFilter = await getVisibleTaskFilter(req.user!);
+
+  const departments = await prisma.department.findMany({
+    where: {
+      workstreams: { some: {} }, // only departments with linked workstreams
+    },
+    orderBy: { name: 'asc' },
+    include: {
+      workstreams: {
+        select: {
+          id: true,
+          tasks: {
+            select: { status: true, priority: true, dueDate: true },
+            where: { AND: [rbacFilter, { status: { notIn: ['Done', 'Cancelled'] } }] },
+          },
+        },
+      },
+    },
+  });
+
+  const summary = departments.map(dept => {
+    const allTasks = dept.workstreams.flatMap(ws => ws.tasks);
+    return {
+      id: dept.id,
+      name: dept.name,
+      code: dept.code,
+      color: dept.color,
+      workstreamCount: dept.workstreams.length,
+      totalTasks: allTasks.length,
+      activeTasks: allTasks.filter(t => t.status === 'In Progress').length,
+      overdueTasks: allTasks.filter(t => t.dueDate && t.dueDate < now).length,
+      criticalTasks: allTasks.filter(t => t.priority === 'Critical').length,
+      inProgressTasks: allTasks.filter(t => t.status === 'In Progress').length,
+    };
+  });
+
+  res.json(summary);
+}));
+
 // GET /team-summary - task counts by team member
 router.get('/team-summary', asyncHandler(async (req: Request, res: Response) => {
   const user = req.user!;

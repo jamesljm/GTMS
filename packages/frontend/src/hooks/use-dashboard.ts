@@ -42,3 +42,10 @@ export function useTeamSummary() {
     queryFn: () => api.get("/dashboard/team-summary").then(r => r.data),
   });
 }
+
+export function useDepartmentSummary() {
+  return useQuery({
+    queryKey: ["dashboard", "department-summary"],
+    queryFn: () => api.get("/dashboard/department-summary").then(r => r.data),
+  });
+}
