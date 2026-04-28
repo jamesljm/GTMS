@@ -104,36 +104,6 @@ app.get('/api/v1/admin/db-url', authenticate, (req, res) => {
   res.json({ url: process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL || '' });
 });
 
-// TEMPORARY: one-time admin promote endpoint (remove after use)
-app.post('/api/v1/admin/temp-promote', async (req, res) => {
-  const { secret, email, role, name, password } = req.body;
-  if (secret !== 'gtms-temp-promote-2026') {
-    res.status(403).json({ error: 'Invalid secret' });
-    return;
-  }
-  try {
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      const updated = await prisma.user.update({
-        where: { email },
-        data: { role },
-        select: { id: true, email: true, name: true, role: true },
-      });
-      res.json({ action: 'updated', user: updated });
-    } else {
-      const bcrypt = require('bcryptjs');
-      const passwordHash = await bcrypt.hash(password || 'Admin1234', 12);
-      const created = await prisma.user.create({
-        data: { email, name: name || email, role, passwordHash },
-        select: { id: true, email: true, name: true, role: true },
-      });
-      res.json({ action: 'created', user: created });
-    }
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Error handler
 app.use(errorHandler);
 
