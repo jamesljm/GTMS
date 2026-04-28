@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNotifications, useUnreadCount, useMarkRead, useMarkAllRead } from "@/hooks/use-notifications";
 import { Bell, Check, CheckCheck, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,9 @@ const typeIcons: Record<string, string> = {
 
 export function NotificationDropdown() {
   const [open, setOpen] = useState(false);
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
   const { data: unreadData } = useUnreadCount();
   const { data, isLoading } = useNotifications();
@@ -30,6 +32,20 @@ export function NotificationDropdown() {
 
   const count = unreadData?.count || 0;
   const notifications = data?.notifications || [];
+
+  const computePosition = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const panelWidth = Math.min(320, window.innerWidth - 16);
+    // Position below the bell icon
+    let top = rect.bottom + 8;
+    // Align right edge to the bell's right edge, but clamp to viewport
+    let left = rect.right - panelWidth;
+    if (left < 8) left = 8;
+    if (left + panelWidth > window.innerWidth - 8) left = window.innerWidth - 8 - panelWidth;
+    const maxHeight = window.innerHeight - top - 16;
+    setPanelStyle({ position: "fixed", top, left, width: panelWidth, maxHeight });
+  }, []);
 
   // Close on click outside
   useEffect(() => {
@@ -42,6 +58,18 @@ export function NotificationDropdown() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Recompute on scroll/resize while open
+  useEffect(() => {
+    if (!open) return;
+    computePosition();
+    window.addEventListener("resize", computePosition);
+    window.addEventListener("scroll", computePosition, true);
+    return () => {
+      window.removeEventListener("resize", computePosition);
+      window.removeEventListener("scroll", computePosition, true);
+    };
+  }, [open, computePosition]);
+
   const handleClick = (n: any) => {
     if (!n.isRead) {
       markRead.mutate(n.id);
@@ -53,8 +81,9 @@ export function NotificationDropdown() {
   };
 
   return (
-    <div className="relative" ref={ref}>
+    <div ref={ref}>
       <button
+        ref={buttonRef}
         onClick={() => setOpen(!open)}
         className="relative p-2 rounded-md hover:bg-accent transition-colors"
       >
@@ -67,7 +96,7 @@ export function NotificationDropdown() {
       </button>
 
       {open && (
-        <div className="fixed sm:absolute right-2 sm:right-0 top-14 sm:top-full mt-0 sm:mt-2 w-[calc(100vw-1rem)] sm:w-80 max-h-[calc(100vh-4rem)] bg-white dark:bg-background rounded-lg shadow-lg border z-50 overflow-hidden flex flex-col">
+        <div style={panelStyle} className="bg-white dark:bg-background rounded-lg shadow-lg border z-50 overflow-hidden flex flex-col">
           <div className="flex items-center justify-between p-3 border-b">
             <h3 className="text-sm font-semibold">Notifications</h3>
             {count > 0 && (
