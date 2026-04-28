@@ -67,7 +67,7 @@ export function NotificationDropdown() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-lg border z-50 overflow-hidden">
+        <div className="fixed sm:absolute right-2 sm:right-0 top-14 sm:top-full mt-0 sm:mt-2 w-[calc(100vw-1rem)] sm:w-80 max-h-[calc(100vh-4rem)] bg-white dark:bg-background rounded-lg shadow-lg border z-50 overflow-hidden flex flex-col">
           <div className="flex items-center justify-between p-3 border-b">
             <h3 className="text-sm font-semibold">Notifications</h3>
             {count > 0 && (
@@ -83,7 +83,7 @@ export function NotificationDropdown() {
             )}
           </div>
 
-          <div className="max-h-80 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto">
             {isLoading ? (
               <div className="flex justify-center py-4">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
@@ -105,7 +105,7 @@ export function NotificationDropdown() {
                   <span className="text-sm shrink-0 mt-0.5">{typeIcons[n.type] || "🔔"}</span>
                   <div className="flex-1 min-w-0">
                     <p className={cn("text-xs", !n.isRead && "font-medium")}>{n.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 break-words">{n.message}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <p className="text-[10px] text-muted-foreground">
                         {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
