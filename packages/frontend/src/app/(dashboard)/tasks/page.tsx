@@ -25,6 +25,13 @@ import { cn } from "@/lib/utils";
 type ViewType = "list" | "kanban" | "gantt" | "calendar";
 type GroupBy = "none" | "workstream" | "assignee" | "priority" | "department";
 
+const VIEW_OPTIONS = [
+  { value: "list", label: "List", icon: List },
+  { value: "kanban", label: "Kanban", icon: Kanban },
+  { value: "gantt", label: "Gantt", icon: BarChart3 },
+  { value: "calendar", label: "Calendar", icon: CalendarDays },
+] as const;
+
 export default function TasksPage() {
   return (
     <Suspense fallback={<div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
@@ -164,6 +171,8 @@ function TasksContent() {
     return () => document.removeEventListener("keydown", handler);
   }, [selectedTaskId, handleClosePanel]);
 
+  const ActiveViewIcon = VIEW_OPTIONS.find(v => v.value === activeView)?.icon || List;
+
   const viewContent = (
     <>
       {activeView === "list" && (
@@ -219,32 +228,60 @@ function TasksContent() {
   return (
     <div className="space-y-3">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Tabs value={activeView} onValueChange={handleViewChange}>
-            <TabsList className="h-9">
-              <TabsTrigger value="list" className="text-xs gap-1 px-3">
-                <List className="h-3.5 w-3.5" /> List
-              </TabsTrigger>
-              <TabsTrigger value="kanban" className="text-xs gap-1 px-3">
-                <Kanban className="h-3.5 w-3.5" /> Kanban
-              </TabsTrigger>
-              <TabsTrigger value="gantt" className="text-xs gap-1 px-3">
-                <BarChart3 className="h-3.5 w-3.5" /> Gantt
-              </TabsTrigger>
-              <TabsTrigger value="calendar" className="text-xs gap-1 px-3">
-                <CalendarDays className="h-3.5 w-3.5" /> Calendar
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+      <div className="flex items-center justify-between gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Mobile: view selector dropdown */}
+          <div className="sm:hidden">
+            <Select value={activeView} onValueChange={handleViewChange}>
+              <SelectTrigger className="h-9 w-[110px] text-xs gap-1">
+                <ActiveViewIcon className="h-3.5 w-3.5 shrink-0" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {VIEW_OPTIONS.map((v) => (
+                  <SelectItem key={v.value} value={v.value} className="text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <v.icon className="h-3.5 w-3.5" />
+                      {v.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Button size="sm" onClick={() => setShowCreate(true)}>
+          {/* Desktop: tab buttons */}
+          <div className="hidden sm:block">
+            <Tabs value={activeView} onValueChange={handleViewChange}>
+              <TabsList className="h-9">
+                <TabsTrigger value="list" className="text-xs gap-1 px-3">
+                  <List className="h-3.5 w-3.5" /> List
+                </TabsTrigger>
+                <TabsTrigger value="kanban" className="text-xs gap-1 px-3">
+                  <Kanban className="h-3.5 w-3.5" /> Kanban
+                </TabsTrigger>
+                <TabsTrigger value="gantt" className="text-xs gap-1 px-3">
+                  <BarChart3 className="h-3.5 w-3.5" /> Gantt
+                </TabsTrigger>
+                <TabsTrigger value="calendar" className="text-xs gap-1 px-3">
+                  <CalendarDays className="h-3.5 w-3.5" /> Calendar
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
+          {/* Mobile: icon-only new task button */}
+          <Button size="sm" onClick={() => setShowCreate(true)} className="sm:hidden h-9 w-9 p-0">
+            <Plus className="h-4 w-4" />
+          </Button>
+          {/* Desktop: full new task button */}
+          <Button size="sm" onClick={() => setShowCreate(true)} className="hidden sm:flex">
             <Plus className="h-4 w-4 mr-1" /> New Task
           </Button>
 
-          {/* Density toggle */}
+          {/* Density toggle - hidden on mobile */}
           {activeView === "list" && (
-            <div className="flex items-center border rounded-md">
+            <div className="hidden sm:flex items-center border rounded-md">
               <Button
                 size="sm"
                 variant={viewDensity === "default" ? "default" : "ghost"}
@@ -275,7 +312,7 @@ function TasksContent() {
             <PanelRight className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <h1 className="text-2xl font-bold">Tasks</h1>
+        <h1 className="text-lg sm:text-2xl font-bold shrink-0">Tasks</h1>
       </div>
 
       {/* Filter bar */}
@@ -292,7 +329,7 @@ function TasksContent() {
 
       {/* Sort & Group controls for list view */}
       {activeView === "list" && (
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm">
           {/* Total count */}
           {totalCount > 0 && (
             <span className="text-sm font-medium text-muted-foreground">
@@ -301,9 +338,9 @@ function TasksContent() {
           )}
           <div className="flex items-center gap-1.5">
             <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-muted-foreground">Sort:</span>
+            <span className="text-muted-foreground hidden sm:inline">Sort:</span>
             <Select value={filters.sortBy || "dueDate"} onValueChange={v => handleSort(v)}>
-              <SelectTrigger className="h-7 w-[120px] text-xs">
+              <SelectTrigger className="h-7 w-[100px] sm:w-[120px] text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -319,9 +356,9 @@ function TasksContent() {
             </Button>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground">Group:</span>
+            <span className="text-muted-foreground hidden sm:inline">Group:</span>
             <Select value={listGroupBy} onValueChange={v => setListGroupBy(v as GroupBy)}>
-              <SelectTrigger className="h-7 w-[120px] text-xs">
+              <SelectTrigger className="h-7 w-[100px] sm:w-[120px] text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

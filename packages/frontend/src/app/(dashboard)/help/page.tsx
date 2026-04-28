@@ -59,19 +59,21 @@ export default function HelpPage() {
       </div>
 
       {/* Tab navigation */}
-      <div className="flex flex-wrap gap-1.5 border-b pb-3">
-        {tabs.map((tab) => (
-          <Button
-            key={tab.id}
-            variant={activeTab === tab.id ? "default" : "outline"}
-            size="sm"
-            className="text-xs h-8 gap-1.5"
-            onClick={() => setActiveTab(tab.id)}
-          >
-            <tab.icon className="h-3.5 w-3.5" />
-            {tab.label}
-          </Button>
-        ))}
+      <div className="overflow-x-auto scrollbar-hide border-b pb-3">
+        <div className="flex gap-1.5 flex-nowrap min-w-max">
+          {tabs.map((tab) => (
+            <Button
+              key={tab.id}
+              variant={activeTab === tab.id ? "default" : "outline"}
+              size="sm"
+              className="text-xs h-8 gap-1.5 shrink-0"
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <tab.icon className="h-3.5 w-3.5" />
+              {tab.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* ===== OVERVIEW TAB ===== */}

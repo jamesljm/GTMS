@@ -67,7 +67,7 @@ export function MultiSelectFilter({ label, options, selected, onChange, classNam
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 w-56 max-h-64 overflow-y-auto bg-white rounded-lg shadow-lg border z-50">
+        <div className="absolute top-full left-0 mt-1 w-56 max-h-64 overflow-y-auto bg-popover rounded-lg shadow-lg border z-50">
           {options.length === 0 && (
             <div className="px-3 py-2 text-xs text-muted-foreground">No options</div>
           )}

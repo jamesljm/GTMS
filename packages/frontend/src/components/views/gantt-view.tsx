@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useGantt, ZoomLevel } from "@/hooks/use-gantt";
 import { GanttBar } from "./gantt-bar";
 import { Button } from "@/components/ui/button";
@@ -18,14 +18,26 @@ interface GanttViewProps {
 
 type GanttMode = "timeline" | "milestone";
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return isMobile;
+}
+
 export function GanttView({ tasks, isLoading, selectedTaskId, onSelectTask, workstreams }: GanttViewProps) {
   const { zoom, setZoom, config } = useGantt(tasks);
   const [mode, setMode] = useState<GanttMode>("timeline");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
-  const ROW_HEIGHT = 32;
-  const LABEL_WIDTH = 240;
+  const ROW_HEIGHT = isMobile ? 28 : 32;
+  const LABEL_WIDTH = isMobile ? 100 : 240;
 
   // Group tasks by workstream
   const groups = useMemo(() => {
@@ -91,11 +103,11 @@ export function GanttView({ tasks, isLoading, selectedTaskId, onSelectTask, work
   return (
     <div>
       {/* Controls */}
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Mode:</span>
           <Select value={mode} onValueChange={(v) => setMode(v as GanttMode)}>
-            <SelectTrigger className="w-[120px] h-8">
+            <SelectTrigger className="w-[100px] sm:w-[120px] h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -124,11 +136,11 @@ export function GanttView({ tasks, isLoading, selectedTaskId, onSelectTask, work
 
       {/* Gantt chart */}
       <div className="border rounded-lg overflow-hidden">
-        <div className="flex">
+        <div className="flex overflow-x-auto">
           {/* Left: labels */}
           <div className="shrink-0 border-r bg-muted/30" style={{ width: LABEL_WIDTH }}>
             {/* Header */}
-            <div className="h-8 border-b px-3 flex items-center text-xs font-medium text-muted-foreground">
+            <div className="h-8 border-b px-2 sm:px-3 flex items-center text-xs font-medium text-muted-foreground">
               Task
             </div>
             {/* Rows */}
@@ -136,7 +148,7 @@ export function GanttView({ tasks, isLoading, selectedTaskId, onSelectTask, work
               <div
                 key={row.id}
                 className={cn(
-                  "border-b flex items-center px-2 text-sm cursor-pointer hover:bg-accent/50",
+                  "border-b flex items-center px-1.5 sm:px-2 text-sm cursor-pointer hover:bg-accent/50 min-h-[44px] sm:min-h-0",
                   row.type === "group" && "bg-muted/50 font-medium",
                   row.type === "task" && selectedTaskId === row.id && "bg-primary/5",
                 )}
@@ -153,11 +165,11 @@ export function GanttView({ tasks, isLoading, selectedTaskId, onSelectTask, work
                     ) : (
                       <ChevronDown className="h-3.5 w-3.5 mr-1 text-muted-foreground shrink-0" />
                     )}
-                    {row.color && <div className="w-2 h-2 rounded-full mr-1.5 shrink-0" style={{ backgroundColor: row.color }} />}
-                    <span className="text-xs truncate">{row.label}</span>
+                    {row.color && <div className="w-2 h-2 rounded-full mr-1 sm:mr-1.5 shrink-0" style={{ backgroundColor: row.color }} />}
+                    <span className="text-xs truncate">{isMobile ? (row.label.split(" - ")[0] || row.label) : row.label}</span>
                   </>
                 ) : (
-                  <span className="text-xs truncate pl-5">{row.label}</span>
+                  <span className="text-xs truncate pl-3 sm:pl-5">{row.label}</span>
                 )}
               </div>
             ))}
@@ -173,7 +185,7 @@ export function GanttView({ tasks, isLoading, selectedTaskId, onSelectTask, work
                     key={i}
                     className={cn(
                       "border-r text-[10px] text-muted-foreground flex items-center justify-center shrink-0",
-                      col.isToday && "bg-red-50 font-medium text-red-600",
+                      col.isToday && "bg-red-50 dark:bg-red-950/30 font-medium text-red-600",
                     )}
                     style={{ width: config.columnWidth }}
                   >
@@ -231,8 +243,13 @@ export function GanttView({ tasks, isLoading, selectedTaskId, onSelectTask, work
         </div>
       </div>
 
+      {/* Scroll hint on mobile */}
+      <p className="text-[10px] text-muted-foreground mt-1.5 sm:hidden">
+        Swipe left/right to scroll the timeline
+      </p>
+
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-2 text-xs text-muted-foreground">
         <div className="flex items-center gap-1"><div className="w-3 h-2 bg-red-500 rounded" /> Critical</div>
         <div className="flex items-center gap-1"><div className="w-3 h-2 bg-orange-400 rounded" /> High</div>
         <div className="flex items-center gap-1"><div className="w-3 h-2 bg-blue-400 rounded" /> Medium</div>

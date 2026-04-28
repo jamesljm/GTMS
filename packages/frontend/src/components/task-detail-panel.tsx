@@ -26,7 +26,7 @@ export function TaskDetailPanel({ taskId, open, onClose, mode = "overlay", onNav
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="overflow-y-auto p-0">
+      <SheetContent side="right" className="overflow-y-auto p-0 w-full sm:max-w-[480px] pb-20 lg:pb-0">
         <SheetHeader className="sr-only">
           <SheetTitle>Task Details</SheetTitle>
           <SheetDescription>View and edit task details</SheetDescription>
