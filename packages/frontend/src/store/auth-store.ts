@@ -9,6 +9,7 @@ interface User {
   position?: string;
   departmentId?: string;
   department?: { id: string; name: string; code: string };
+  microsoftId?: string | null;
 }
 
 interface AuthState {

@@ -69,6 +69,7 @@ router.post('/signup', validate(signupSchema), asyncHandler(async (req: Request,
       position: user.position,
       departmentId: user.departmentId,
       department: user.dept,
+      microsoftId: user.microsoftId,
     },
   });
 }));
@@ -95,6 +96,7 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, r
       position: user.position,
       departmentId: user.departmentId,
       department: user.dept,
+      microsoftId: user.microsoftId,
     },
   });
 }));
@@ -173,6 +175,7 @@ router.post('/microsoft', asyncHandler(async (req: Request, res: Response) => {
       position: user.position,
       departmentId: user.departmentId,
       department: (user as any).dept,
+      microsoftId: user.microsoftId,
     },
   });
 }));
@@ -207,6 +210,7 @@ router.get('/me', authenticate, asyncHandler(async (req: Request, res: Response)
     position: user.position,
     departmentId: user.departmentId,
     department: user.dept,
+    microsoftId: user.microsoftId,
   });
 }));
 
