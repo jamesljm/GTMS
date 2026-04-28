@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuthStore } from "@/store/auth-store";
 import {
   LayoutDashboard, ListTodo, MessageSquare, Users, Layers,
-  Settings, LogOut, Menu, X, Building2, ClipboardCheck, Activity, ShieldCheck, HelpCircle,
+  Settings, LogOut, Menu, X, Building2, ClipboardCheck, Activity, ShieldCheck, HelpCircle, BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Dept Charts", href: "/department-dashboard", icon: BarChart3 },
   { name: "Tasks", href: "/tasks", icon: ListTodo },
   { name: "Pending", href: "/pending", icon: ClipboardCheck },
   { name: "AI Chat", href: "/chat", icon: MessageSquare },

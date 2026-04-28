@@ -262,4 +262,93 @@ router.get('/team-summary', asyncHandler(async (req: Request, res: Response) => 
   res.json(summary);
 }));
 
+// GET /department-charts - stacked bar chart data for a department
+router.get('/department-charts', asyncHandler(async (req: Request, res: Response) => {
+  const user = req.user!;
+  let departmentId = req.query.departmentId as string | undefined;
+  const workstreamId = req.query.workstreamId as string | undefined;
+
+  // Default: HOD/MANAGER see their own department
+  if (!departmentId && (user.role === 'HOD' || user.role === 'MANAGER')) {
+    departmentId = user.departmentId || undefined;
+  }
+
+  const statuses = ['Not Started', 'In Progress', 'Waiting On', 'Blocked', 'Done', 'Cancelled'];
+
+  // Get workstreams filtered by department
+  const wsWhere: any = departmentId ? { departmentId } : {};
+  const workstreams = await prisma.workstream.findMany({
+    where: wsWhere,
+    orderBy: { sortOrder: 'asc' },
+    select: { id: true, code: true, name: true },
+  });
+  const wsIds = workstreams.map(ws => ws.id);
+
+  // Chart 1: Tasks by workstream, grouped by status
+  const wsTasks = await prisma.task.findMany({
+    where: { workstreamId: { in: wsIds } },
+    select: { workstreamId: true, status: true },
+  });
+
+  const byWorkstream = workstreams.map(ws => {
+    const tasks = wsTasks.filter(t => t.workstreamId === ws.id);
+    const row: Record<string, any> = { name: ws.code };
+    for (const s of statuses) {
+      row[s] = tasks.filter(t => t.status === s).length;
+    }
+    return row;
+  });
+
+  // Chart 2: Tasks by member (assignees in the department)
+  const memberWhere: any = departmentId ? { departmentId, isActive: true } : { isActive: true };
+  const members = await prisma.user.findMany({
+    where: memberWhere,
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true },
+  });
+  const memberIds = members.map(m => m.id);
+
+  const memberTasks = await prisma.task.findMany({
+    where: { assigneeId: { in: memberIds } },
+    select: { assigneeId: true, status: true },
+  });
+
+  const byMember = members.map(m => {
+    const tasks = memberTasks.filter(t => t.assigneeId === m.id);
+    const row: Record<string, any> = { name: m.name };
+    for (const s of statuses) {
+      row[s] = tasks.filter(t => t.status === s).length;
+    }
+    return row;
+  });
+
+  // Chart 3: Tasks by member within a specific workstream
+  let byWorkstreamMember: Record<string, any>[] = [];
+  if (workstreamId) {
+    const wsMemberTasks = await prisma.task.findMany({
+      where: { workstreamId, assigneeId: { not: null } },
+      select: { assigneeId: true, status: true },
+    });
+
+    // Group by assignee
+    const assigneeIds = [...new Set(wsMemberTasks.map(t => t.assigneeId!))];
+    const assignees = await prisma.user.findMany({
+      where: { id: { in: assigneeIds } },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    });
+
+    byWorkstreamMember = assignees.map(a => {
+      const tasks = wsMemberTasks.filter(t => t.assigneeId === a.id);
+      const row: Record<string, any> = { name: a.name };
+      for (const s of statuses) {
+        row[s] = tasks.filter(t => t.status === s).length;
+      }
+      return row;
+    });
+  }
+
+  res.json({ byWorkstream, byMember, byWorkstreamMember });
+}));
+
 export default router;

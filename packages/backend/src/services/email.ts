@@ -194,6 +194,57 @@ export async function sendOverdueAlert(taskId: string, recipientId: string, esca
   }
 }
 
+export async function sendStatusChangeAlert(
+  taskId: string,
+  recipientId: string,
+  status: 'Blocked' | 'Waiting On',
+  remarks: string,
+  changedByName: string,
+) {
+  if (!resend) return;
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { workstream: true, assignee: { select: { name: true, email: true } } },
+  });
+  if (!task) return;
+
+  const recipient = await prisma.user.findUnique({ where: { id: recipientId } });
+  if (!recipient) return;
+
+  const statusLabel = status === 'Blocked' ? 'BLOCKED' : 'WAITING ON';
+  const statusColor = status === 'Blocked' ? '#dc2626' : '#d97706';
+
+  const subject = `[GTMS] Task ${statusLabel}: ${task.title}`;
+  const html = `
+    <h3>Task Status Changed - ${statusLabel}</h3>
+    <p><strong>${task.title}</strong></p>
+    <p>Workstream: ${task.workstream?.name || 'N/A'}</p>
+    <p>Assignee: ${task.assignee?.name || 'Unassigned'}</p>
+    <p>Priority: ${task.priority}</p>
+    <p style="color: ${statusColor}; font-weight: bold;">Status: ${statusLabel}</p>
+    <p>Changed by: ${changedByName}</p>
+    ${remarks ? `<div style="margin: 12px 0; padding: 12px; background: #f9fafb; border-left: 4px solid ${statusColor}; border-radius: 4px;"><strong>Remarks:</strong><br/>${remarks}</div>` : ''}
+    <hr>
+    <p><em>This is an automated status change alert from GTMS.</em></p>
+  `;
+
+  try {
+    const result = await resend.emails.send({
+      from: config.RESEND_FROM_EMAIL,
+      to: recipient.email,
+      subject,
+      html,
+    });
+
+    await prisma.reminderLog.create({
+      data: { type: 'status_alert', recipientId, taskId, emailId: result.data?.id },
+    });
+  } catch (err) {
+    console.error('Failed to send status change alert:', err);
+  }
+}
+
 export async function sendBlockerAlert(taskId: string, recipientId: string, escalationLevel: string) {
   if (!resend) return;
 

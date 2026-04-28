@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { formatRecurrenceDescription } from "@/lib/recurrence-utils";
 import { RecurrencePicker, RecurrenceData } from "@/components/recurrence-picker";
 import { EmailFollowUpSection } from "@/components/email-followup-section";
+import { StatusChangeDialog } from "@/components/status-change-dialog";
 
 interface TaskDetailContentProps {
   taskId: string;
@@ -81,6 +82,7 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
   const [reproposeDesc, setReproposeDesc] = useState("");
   const [reproposeComment, setReproposeComment] = useState("");
   const [showProposalHistory, setShowProposalHistory] = useState(false);
+  const [statusDialog, setStatusDialog] = useState<{ open: boolean; status: "Blocked" | "Waiting On" } | null>(null);
 
   // Reset edit mode and subtask form when task changes
   useEffect(() => {
@@ -161,7 +163,19 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
 
   const handleStatusChange = (status: string) => {
     if (!task) return;
+    if ((status === "Blocked" || status === "Waiting On") && task.status !== status) {
+      setStatusDialog({ open: true, status });
+      return;
+    }
     updateTask.mutate({ id: task.id, status });
+  };
+
+  const handleStatusDialogConfirm = (data: { remarks: string; ccUserIds: string[] }) => {
+    if (!task || !statusDialog) return;
+    updateTask.mutate(
+      { id: task.id, status: statusDialog.status, statusRemarks: data.remarks, statusCcUserIds: data.ccUserIds },
+      { onSuccess: () => setStatusDialog(null) },
+    );
   };
 
   const handleExpandSubtaskForm = () => {
@@ -775,6 +789,17 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
           </button>
           <img src={previewImage} alt="Preview" className="max-w-full max-h-full object-contain rounded" onClick={(e) => e.stopPropagation()} />
         </div>
+      )}
+
+      {/* Status change dialog for Blocked / Waiting On */}
+      {statusDialog && (
+        <StatusChangeDialog
+          open={statusDialog.open}
+          onClose={() => setStatusDialog(null)}
+          onConfirm={handleStatusDialogConfirm}
+          status={statusDialog.status}
+          loading={updateTask.isPending}
+        />
       )}
     </>
   );

@@ -53,6 +53,8 @@ export const updateTaskSchema = z.object({
   recurrenceStartDate: z.string().nullable().optional(),
   recurrenceEndDate: z.string().nullable().optional(),
   recurrenceCount: z.number().int().min(1).nullable().optional(),
+  statusRemarks: z.string().optional(),
+  statusCcUserIds: z.array(z.string()).optional(),
 });
 
 export const addNoteSchema = z.object({

@@ -49,3 +49,15 @@ export function useDepartmentSummary() {
     queryFn: () => api.get("/dashboard/department-summary").then(r => r.data),
   });
 }
+
+export function useDepartmentCharts(departmentId?: string, workstreamId?: string) {
+  return useQuery({
+    queryKey: ["dashboard", "department-charts", departmentId, workstreamId],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (departmentId) params.set("departmentId", departmentId);
+      if (workstreamId) params.set("workstreamId", workstreamId);
+      return api.get(`/dashboard/department-charts?${params}`).then(r => r.data);
+    },
+  });
+}

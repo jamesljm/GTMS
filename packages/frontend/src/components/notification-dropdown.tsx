@@ -14,6 +14,9 @@ const typeIcons: Record<string, string> = {
   TASK_ACCEPTED: "👍",
   TASK_CHANGES_REQUESTED: "✏️",
   TASK_REPROPOSED: "🔄",
+  TASK_BLOCKED: "🚫",
+  TASK_WAITING: "⏳",
+  TASK_OVERDUE: "⏰",
 };
 
 export function NotificationDropdown() {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   useEmailFollowUps,
   useCreateEmailFollowUp,
@@ -8,6 +8,7 @@ import {
   useDeleteEmailFollowUp,
   useSendFollowUpNow,
 } from "@/hooks/use-email-followups";
+import { useUsers } from "@/hooks/use-workstreams";
 import { useAuthStore } from "@/store/auth-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,8 +103,79 @@ export function EmailFollowUpSection({ taskId, canEdit }: EmailFollowUpSectionPr
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FollowUpForm>(emptyForm);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const recipientInputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const { data: allUsers } = useUsers();
 
   const hasMicrosoftId = !!(currentUser as any)?.microsoftId;
+
+  // Get the text after the last separator to use for filtering
+  const getCurrentToken = (value: string): string => {
+    const parts = value.split(/[,;]/);
+    return (parts[parts.length - 1] || "").trim();
+  };
+
+  const filteredSuggestions = (() => {
+    const token = getCurrentToken(form.recipientEmails).toLowerCase();
+    if (!token || !allUsers) return [];
+    const existingEmails = new Set(
+      form.recipientEmails
+        .split(/[,;]/)
+        .slice(0, -1)
+        .map((e: string) => e.trim().toLowerCase())
+    );
+    return (allUsers as any[]).filter(
+      (u: any) =>
+        u.email &&
+        !existingEmails.has(u.email.toLowerCase()) &&
+        (u.email.toLowerCase().includes(token) ||
+          u.name?.toLowerCase().includes(token))
+    ).slice(0, 8);
+  })();
+
+  const selectSuggestion = useCallback((user: any) => {
+    const parts = form.recipientEmails.split(/[,;]/);
+    parts[parts.length - 1] = " " + user.email;
+    const newValue = parts.join(",") + ", ";
+    setForm((p) => ({ ...p, recipientEmails: newValue }));
+    setShowSuggestions(false);
+    setHighlightedIndex(-1);
+    recipientInputRef.current?.focus();
+  }, [form.recipientEmails]);
+
+  const handleRecipientKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions || filteredSuggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.min(i + 1, filteredSuggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter" && highlightedIndex >= 0) {
+      e.preventDefault();
+      selectSuggestion(filteredSuggestions[highlightedIndex]);
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
+  };
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(e.target as Node) &&
+        recipientInputRef.current &&
+        !recipientInputRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   const openAddForm = () => {
     setForm(emptyForm);
@@ -370,18 +442,48 @@ export function EmailFollowUpSection({ taskId, canEdit }: EmailFollowUpSectionPr
             </button>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1 relative">
             <label className="text-xs font-medium text-muted-foreground">
               Recipients (comma-separated)
             </label>
             <Input
+              ref={recipientInputRef}
               value={form.recipientEmails}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, recipientEmails: e.target.value }))
-              }
+              onChange={(e) => {
+                setForm((p) => ({ ...p, recipientEmails: e.target.value }));
+                setShowSuggestions(true);
+                setHighlightedIndex(-1);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onKeyDown={handleRecipientKeyDown}
               placeholder="alice@example.com, bob@example.com"
               className="h-8 text-sm"
+              autoComplete="off"
             />
+            {showSuggestions && filteredSuggestions.length > 0 && (
+              <div
+                ref={suggestionsRef}
+                className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto"
+              >
+                {filteredSuggestions.map((user: any, idx: number) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    className={cn(
+                      "w-full text-left px-3 py-1.5 text-sm hover:bg-accent flex items-center justify-between gap-2",
+                      idx === highlightedIndex && "bg-accent"
+                    )}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      selectSuggestion(user);
+                    }}
+                  >
+                    <span className="truncate font-medium">{user.name}</span>
+                    <span className="text-xs text-muted-foreground truncate">{user.email}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">

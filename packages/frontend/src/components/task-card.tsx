@@ -52,6 +52,7 @@ interface TaskCardProps {
     type: string;
     dueDate: string | null;
     acceptanceStatus?: string | null;
+    createdAt?: string;
     waitingOnWhom?: string | null;
     workstream?: { code: string; name: string; color: string } | null;
     assignee?: { id: string; name: string } | null;
@@ -177,6 +178,14 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {task.createdAt && (
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {compact ? format(new Date(task.createdAt), "dd MMM") : format(new Date(task.createdAt), "dd MMM yyyy")}
+            </span>
+          )}
+          {task.createdAt && dueDateLabel && (
+            <span className="text-muted-foreground text-xs">→</span>
+          )}
           {dueDateLabel && (
             <span className={cn("text-xs whitespace-nowrap", isOverdue ? "text-red-600 font-medium" : "text-muted-foreground")}>
               {compact ? (task.dueDate ? format(new Date(task.dueDate), "dd MMM") : "") : dueDateLabel}

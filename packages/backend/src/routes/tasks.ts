@@ -7,7 +7,7 @@ import { getVisibleTaskFilter, canEditTask, canEditAllTaskFields, getUserWorkstr
 import { createNotification } from './notifications';
 import { createAuditLog } from './audit';
 import { calculateNextRecurrenceDate } from '../services/recurrence';
-import { sendBlockerAlert } from '../services/email';
+import { sendBlockerAlert, sendStatusChangeAlert } from '../services/email';
 import { getHODForTask } from '../services/escalation';
 import { shouldSendEmail } from '../services/preference-check';
 
@@ -606,7 +606,8 @@ router.patch('/:id', validate(updateTaskSchema), asyncHandler(async (req: Reques
   const allowed = await canEditTask(req.user!, existing);
   if (!allowed) throw new AppError(403, 'You do not have permission to edit this task');
 
-  const data: any = { ...req.body };
+  const { statusRemarks, statusCcUserIds, ...bodyRest } = req.body;
+  const data: any = { ...bodyRest };
   const userId = req.user!.id;
 
   // Workstream-based field restriction: if user is STAFF in this workstream
@@ -684,20 +685,68 @@ router.patch('/:id', validate(updateTaskSchema), asyncHandler(async (req: Reques
     include: taskInclude,
   });
 
-  // Blocker alert: fire immediately when status changes to Blocked
-  if (data.status === 'Blocked' && existing.status !== 'Blocked' && existing.assigneeId) {
-    // Alert assignee
-    shouldSendEmail(existing.assigneeId, 'blocker').then(async (allowed) => {
-      if (allowed) await sendBlockerAlert(task.id, existing.assigneeId!, 'assignee');
-    }).catch(err => console.error('Blocker alert failed:', err.message));
+  // Status change alerts: Blocked or Waiting On with remarks + CC
+  if ((data.status === 'Blocked' || data.status === 'Waiting On') && existing.status !== data.status) {
+    const remarks = statusRemarks || '';
+    const ccUserIds: string[] = statusCcUserIds || [];
+    const changedByName = req.user!.name;
+    const isBlocked = data.status === 'Blocked';
+    const notifType = isBlocked ? 'TASK_BLOCKED' : 'TASK_WAITING';
+    const notifTitle = isBlocked ? 'Task blocked' : 'Task waiting';
+    const notifMsg = remarks
+      ? `${changedByName} marked "${task.title}" as ${data.status}: ${remarks}`
+      : `${changedByName} marked "${task.title}" as ${data.status}`;
 
-    // Alert HOD
-    getHODForTask(existing).then(async (hodId) => {
-      if (hodId) {
-        const allowed = await shouldSendEmail(hodId, 'blocker');
-        if (allowed) await sendBlockerAlert(task.id, hodId, 'hod');
+    // 1. Save remarks as a Note
+    if (remarks) {
+      await prisma.note.create({
+        data: {
+          taskId: task.id,
+          authorId: userId,
+          content: remarks,
+          type: isBlocked ? 'Blocker Report' : 'Status Update',
+        },
+      }).catch(err => console.error('Status remarks note failed:', err.message));
+    }
+
+    // 2. Notify HOD
+    const hodId = await getHODForTask(existing).catch(() => null);
+    if (hodId && hodId !== userId) {
+      await createNotification(hodId, notifType, notifTitle, notifMsg, task.id)
+        .catch(err => console.error('HOD notification failed:', err.message));
+      shouldSendEmail(hodId, 'blocker').then(async (allowed) => {
+        if (allowed) await sendStatusChangeAlert(task.id, hodId, data.status, remarks, changedByName);
+      }).catch(err => console.error('HOD status email failed:', err.message));
+    }
+
+    // 3. Notify task creator (initiator)
+    if (existing.createdById && existing.createdById !== userId && existing.createdById !== hodId) {
+      await createNotification(existing.createdById, notifType, notifTitle, notifMsg, task.id)
+        .catch(err => console.error('Creator notification failed:', err.message));
+      shouldSendEmail(existing.createdById, 'blocker').then(async (allowed) => {
+        if (allowed) await sendStatusChangeAlert(task.id, existing.createdById, data.status, remarks, changedByName);
+      }).catch(err => console.error('Creator status email failed:', err.message));
+    }
+
+    // 4. Notify CC'd users (deduped)
+    const notifiedIds = new Set([userId, hodId, existing.createdById].filter(Boolean));
+    for (const ccId of ccUserIds) {
+      if (!notifiedIds.has(ccId)) {
+        notifiedIds.add(ccId);
+        await createNotification(ccId, notifType, notifTitle, notifMsg, task.id)
+          .catch(err => console.error('CC notification failed:', err.message));
+        shouldSendEmail(ccId, 'blocker').then(async (allowed) => {
+          if (allowed) await sendStatusChangeAlert(task.id, ccId, data.status, remarks, changedByName);
+        }).catch(err => console.error('CC status email failed:', err.message));
       }
-    }).catch(err => console.error('HOD blocker alert failed:', err.message));
+    }
+
+    // 5. Also send legacy blocker alert to assignee for Blocked status
+    if (isBlocked && existing.assigneeId && existing.assigneeId !== userId) {
+      shouldSendEmail(existing.assigneeId, 'blocker').then(async (allowed) => {
+        if (allowed) await sendBlockerAlert(task.id, existing.assigneeId!, 'assignee');
+      }).catch(err => console.error('Blocker alert failed:', err.message));
+    }
   }
 
   // Notifications
