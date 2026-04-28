@@ -148,6 +148,14 @@ export function EmailFollowUpSection({ taskId, canEdit }: EmailFollowUpSectionPr
       .filter((e) => e.length > 0);
   };
 
+  // Convert naive datetime-local value to ISO string with local timezone offset
+  const toLocalISO = (dtLocal: string): string => {
+    if (!dtLocal) return dtLocal;
+    const d = new Date(dtLocal);
+    if (isNaN(d.getTime())) return dtLocal;
+    return d.toISOString();
+  };
+
   const handleSubmit = () => {
     const recipients = parseRecipients(form.recipientEmails);
     if (recipients.length === 0) return;
@@ -164,9 +172,9 @@ export function EmailFollowUpSection({ taskId, canEdit }: EmailFollowUpSectionPr
       if (form.recurrence.recurrenceDays) data.recurrenceDays = form.recurrence.recurrenceDays;
       if (form.recurrence.recurrenceEndDate) data.recurrenceEndDate = form.recurrence.recurrenceEndDate;
       if (form.recurrence.recurrenceCount) data.recurrenceCount = form.recurrence.recurrenceCount;
-      if (form.sendAt) data.sendAt = form.sendAt;
+      if (form.sendAt) data.sendAt = toLocalISO(form.sendAt);
     } else if (form.scheduleType === "once" && form.sendAt) {
-      data.sendAt = form.sendAt;
+      data.sendAt = toLocalISO(form.sendAt);
     }
 
     if (editingId) {
