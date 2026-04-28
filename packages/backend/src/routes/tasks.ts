@@ -6,6 +6,10 @@ import { AppError } from '../middleware/error';
 import { getVisibleTaskFilter, canEditTask, canEditAllTaskFields, getUserWorkstreamMemberships } from '../middleware/rbac';
 import { createNotification } from './notifications';
 import { createAuditLog } from './audit';
+import { calculateNextRecurrenceDate } from '../services/recurrence';
+import { sendBlockerAlert } from '../services/email';
+import { getHODForTask } from '../services/escalation';
+import { shouldSendEmail } from '../services/preference-check';
 
 const router = Router();
 
@@ -286,23 +290,51 @@ router.post('/', validate(createTaskSchema), asyncHandler(async (req: Request, r
     acceptanceStatus = 'Pending';
   }
 
-  const task = await prisma.task.create({
-    data: {
-      title: data.title,
-      description: data.description,
-      type: data.type,
-      status: data.status,
-      priority: data.priority,
-      source: data.source,
+  // Build recurrence data
+  const taskData: any = {
+    title: data.title,
+    description: data.description,
+    type: data.type,
+    status: data.status,
+    priority: data.priority,
+    source: data.source,
+    dueDate: data.dueDate ? new Date(data.dueDate) : null,
+    assigneeId: data.assigneeId,
+    workstreamId: data.workstreamId,
+    parentId: data.parentId,
+    waitingOnWhom: data.waitingOnWhom,
+    createdById: userId,
+    acceptanceStatus,
+  };
+
+  // Handle recurrence fields
+  if (data.recurrenceType) {
+    taskData.recurrenceType = data.recurrenceType;
+    taskData.recurrenceInterval = data.recurrenceInterval || 1;
+    taskData.recurrenceDays = data.recurrenceDays || null;
+    taskData.recurrenceStartDate = data.recurrenceStartDate ? new Date(data.recurrenceStartDate) : null;
+    taskData.recurrenceEndDate = data.recurrenceEndDate ? new Date(data.recurrenceEndDate) : null;
+    taskData.recurrenceCount = data.recurrenceCount || null;
+    taskData.type = 'Recurring';
+    taskData.source = data.source === 'Manual' ? 'Recurring' : data.source;
+
+    // Calculate first next recurrence date
+    const nextDate = calculateNextRecurrenceDate({
+      recurrenceType: data.recurrenceType,
+      recurrenceInterval: data.recurrenceInterval || 1,
+      recurrenceDays: data.recurrenceDays || null,
+      recurrenceStartDate: data.recurrenceStartDate ? new Date(data.recurrenceStartDate) : null,
+      recurrenceEndDate: data.recurrenceEndDate ? new Date(data.recurrenceEndDate) : null,
+      recurrenceCount: data.recurrenceCount || null,
+      recurrenceOccurrences: 0,
+      nextRecurrenceDate: null,
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
-      assigneeId: data.assigneeId,
-      workstreamId: data.workstreamId,
-      parentId: data.parentId,
-      waitingOnWhom: data.waitingOnWhom,
-      recurringCron: data.recurringCron,
-      createdById: userId,
-      acceptanceStatus,
-    },
+    });
+    taskData.nextRecurrenceDate = nextDate;
+  }
+
+  const task = await prisma.task.create({
+    data: taskData,
     include: taskInclude,
   });
 
@@ -593,6 +625,30 @@ router.patch('/:id', validate(updateTaskSchema), asyncHandler(async (req: Reques
     data.dueDate = data.dueDate ? new Date(data.dueDate) : null;
   }
 
+  // Handle recurrence field updates
+  if (data.recurrenceType !== undefined || data.recurrenceInterval !== undefined || data.recurrenceDays !== undefined) {
+    if (data.recurrenceStartDate !== undefined) {
+      data.recurrenceStartDate = data.recurrenceStartDate ? new Date(data.recurrenceStartDate) : null;
+    }
+    if (data.recurrenceEndDate !== undefined) {
+      data.recurrenceEndDate = data.recurrenceEndDate ? new Date(data.recurrenceEndDate) : null;
+    }
+    // Recompute nextRecurrenceDate
+    const merged = { ...existing, ...data };
+    const nextDate = calculateNextRecurrenceDate({
+      recurrenceType: merged.recurrenceType,
+      recurrenceInterval: merged.recurrenceInterval,
+      recurrenceDays: merged.recurrenceDays,
+      recurrenceStartDate: merged.recurrenceStartDate,
+      recurrenceEndDate: merged.recurrenceEndDate,
+      recurrenceCount: merged.recurrenceCount,
+      recurrenceOccurrences: merged.recurrenceOccurrences,
+      nextRecurrenceDate: merged.nextRecurrenceDate,
+      dueDate: merged.dueDate,
+    });
+    data.nextRecurrenceDate = nextDate;
+  }
+
   // Set completedAt when marking as done
   if (data.status === 'Done' && existing.status !== 'Done') {
     data.completedAt = new Date();
@@ -627,6 +683,22 @@ router.patch('/:id', validate(updateTaskSchema), asyncHandler(async (req: Reques
     data,
     include: taskInclude,
   });
+
+  // Blocker alert: fire immediately when status changes to Blocked
+  if (data.status === 'Blocked' && existing.status !== 'Blocked' && existing.assigneeId) {
+    // Alert assignee
+    shouldSendEmail(existing.assigneeId, 'blocker').then(async (allowed) => {
+      if (allowed) await sendBlockerAlert(task.id, existing.assigneeId!, 'assignee');
+    }).catch(err => console.error('Blocker alert failed:', err.message));
+
+    // Alert HOD
+    getHODForTask(existing).then(async (hodId) => {
+      if (hodId) {
+        const allowed = await shouldSendEmail(hodId, 'blocker');
+        if (allowed) await sendBlockerAlert(task.id, hodId, 'hod');
+      }
+    }).catch(err => console.error('HOD blocker alert failed:', err.message));
+  }
 
   // Notifications
   if (data.assigneeId && data.assigneeId !== existing.assigneeId && data.assigneeId !== userId) {

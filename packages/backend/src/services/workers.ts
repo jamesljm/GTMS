@@ -3,6 +3,7 @@ import IORedis from 'ioredis';
 import { config } from '../config';
 import { prisma } from '../prisma';
 import { sendDailyDigest, sendWeeklyDigest, sendTaskReminder } from './email';
+import { shouldSendEmail } from './preference-check';
 
 let connection: IORedis | null = null;
 
@@ -16,15 +17,27 @@ function getConnection() {
     if (!isRedisConfigured()) {
       throw new Error('Redis not configured');
     }
-    connection = new IORedis(config.REDIS_URL, { maxRetriesPerRequest: null });
+    connection = new IORedis(config.REDIS_URL, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      ...(config.REDIS_URL.startsWith('rediss://') ? { tls: { rejectUnauthorized: false } } : {}),
+    });
   }
   return connection;
 }
 
-// Daily digest queue
+export function getRedisStatus(): string {
+  if (!isRedisConfigured()) return 'not_configured';
+  if (!connection) return 'not_connected';
+  return connection.status;
+}
+
+// Queue names
 const DAILY_DIGEST_QUEUE = 'daily-digest';
 const WEEKLY_DIGEST_QUEUE = 'weekly-digest';
 const TASK_REMINDER_QUEUE = 'task-reminder';
+const RECURRING_TASKS_QUEUE = 'recurring-tasks';
+const OVERDUE_BLOCKER_QUEUE = 'overdue-blocker-alerts';
 
 export function startWorkers() {
   const conn = getConnection();
@@ -32,10 +45,12 @@ export function startWorkers() {
   // Daily digest worker
   new Worker(DAILY_DIGEST_QUEUE, async (job) => {
     console.log('Running daily digest...');
-    // Send to ED (primary user)
     const ed = await prisma.user.findFirst({ where: { role: 'ED', isActive: true } });
     if (ed) {
-      await sendDailyDigest(ed.id);
+      const allowed = await shouldSendEmail(ed.id, 'digest');
+      if (allowed) {
+        await sendDailyDigest(ed.id);
+      }
     }
   }, { connection: conn });
 
@@ -44,7 +59,10 @@ export function startWorkers() {
     console.log('Running weekly digest...');
     const ed = await prisma.user.findFirst({ where: { role: 'ED', isActive: true } });
     if (ed) {
-      await sendWeeklyDigest(ed.id);
+      const allowed = await shouldSendEmail(ed.id, 'digest');
+      if (allowed) {
+        await sendWeeklyDigest(ed.id);
+      }
     }
   }, { connection: conn });
 
@@ -55,7 +73,6 @@ export function startWorkers() {
     const threeDaysFromNow = new Date(now);
     threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
 
-    // Find tasks due in 3 days or less that are not done
     const tasks = await prisma.task.findMany({
       where: {
         dueDate: { lte: threeDaysFromNow },
@@ -66,7 +83,6 @@ export function startWorkers() {
 
     for (const task of tasks) {
       if (task.assigneeId) {
-        // Check if we already sent a reminder in the last 24h
         const recentReminder = await prisma.reminderLog.findFirst({
           where: {
             taskId: task.id,
@@ -76,10 +92,27 @@ export function startWorkers() {
           },
         });
         if (!recentReminder) {
-          await sendTaskReminder(task.id, task.assigneeId);
+          const allowed = await shouldSendEmail(task.assigneeId, 'reminder');
+          if (allowed) {
+            await sendTaskReminder(task.id, task.assigneeId);
+          }
         }
       }
     }
+  }, { connection: conn });
+
+  // Recurring tasks worker
+  new Worker(RECURRING_TASKS_QUEUE, async (job) => {
+    console.log('Running recurring task spawner...');
+    const { spawnRecurringTasks } = await import('./recurrence');
+    await spawnRecurringTasks();
+  }, { connection: conn });
+
+  // Overdue/blocker alerts worker
+  new Worker(OVERDUE_BLOCKER_QUEUE, async (job) => {
+    console.log('Running overdue/blocker alerts...');
+    const { processOverdueBlockerAlerts } = await import('./escalation');
+    await processOverdueBlockerAlerts();
   }, { connection: conn });
 
   console.log('BullMQ workers started');
@@ -91,34 +124,40 @@ export async function setupRecurringJobs() {
   const dailyQueue = new Queue(DAILY_DIGEST_QUEUE, { connection: conn });
   const weeklyQueue = new Queue(WEEKLY_DIGEST_QUEUE, { connection: conn });
   const reminderQueue = new Queue(TASK_REMINDER_QUEUE, { connection: conn });
+  const recurringQueue = new Queue(RECURRING_TASKS_QUEUE, { connection: conn });
+  const overdueQueue = new Queue(OVERDUE_BLOCKER_QUEUE, { connection: conn });
 
   // Remove existing repeatable jobs
-  const existingDaily = await dailyQueue.getRepeatableJobs();
-  for (const job of existingDaily) {
-    await dailyQueue.removeRepeatableByKey(job.key);
-  }
-  const existingWeekly = await weeklyQueue.getRepeatableJobs();
-  for (const job of existingWeekly) {
-    await weeklyQueue.removeRepeatableByKey(job.key);
-  }
-  const existingReminder = await reminderQueue.getRepeatableJobs();
-  for (const job of existingReminder) {
-    await reminderQueue.removeRepeatableByKey(job.key);
+  for (const queue of [dailyQueue, weeklyQueue, reminderQueue, recurringQueue, overdueQueue]) {
+    const existing = await queue.getRepeatableJobs();
+    for (const job of existing) {
+      await queue.removeRepeatableByKey(job.key);
+    }
   }
 
   // Daily digest at 07:30 MYT (23:30 UTC previous day)
   await dailyQueue.add('daily-digest', {}, {
-    repeat: { pattern: '30 23 * * *' }, // 07:30 MYT = 23:30 UTC
+    repeat: { pattern: '30 23 * * *' },
   });
 
   // Weekly digest on Monday at 07:00 MYT (23:00 UTC Sunday)
   await weeklyQueue.add('weekly-digest', {}, {
-    repeat: { pattern: '0 23 * * 0' }, // 07:00 MYT Monday = 23:00 UTC Sunday
+    repeat: { pattern: '0 23 * * 0' },
   });
 
   // Task reminders at 08:00 MYT daily (00:00 UTC)
   await reminderQueue.add('task-reminder', {}, {
-    repeat: { pattern: '0 0 * * *' }, // 08:00 MYT = 00:00 UTC
+    repeat: { pattern: '0 0 * * *' },
+  });
+
+  // Recurring tasks - hourly
+  await recurringQueue.add('recurring-tasks', {}, {
+    repeat: { pattern: '0 * * * *' },
+  });
+
+  // Overdue/blocker alerts at 09:00 MYT daily (01:00 UTC)
+  await overdueQueue.add('overdue-blocker-alerts', {}, {
+    repeat: { pattern: '0 1 * * *' },
   });
 
   console.log('Recurring jobs set up');

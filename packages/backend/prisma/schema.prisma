@@ -54,6 +54,7 @@ model User {
   notifications          Notification[]
   auditLogs              AuditLog[]
   workstreamMemberships  WorkstreamMember[]
+  preference             UserPreference?
 
   @@index([departmentId])
 }
@@ -102,8 +103,18 @@ model Task {
   source         String   @default("Manual") // Chat, Email, Manual, Recurring
   dueDate        DateTime?
   completedAt    DateTime?
-  waitingOnWhom  String?
-  recurringCron  String?
+  waitingOnWhom         String?
+  recurrenceType        String?   // daily, weekly, biweekly, monthly, quarterly, yearly
+  recurrenceInterval    Int?      @default(1)
+  recurrenceDays        String?   // JSON: ["Mon","Wed"] or "15" or "first_Monday"
+  recurrenceStartDate   DateTime?
+  recurrenceEndDate     DateTime?
+  recurrenceCount       Int?      // max occurrences (null = infinite)
+  recurrenceOccurrences Int       @default(0)
+  recurrenceParentId    String?
+  recurrenceParent      Task?     @relation("RecurrenceChain", fields: [recurrenceParentId], references: [id])
+  recurrenceChildren    Task[]    @relation("RecurrenceChain")
+  nextRecurrenceDate    DateTime?
 
   workstreamId String?
   workstream   Workstream? @relation(fields: [workstreamId], references: [id])
@@ -136,6 +147,8 @@ model Task {
   @@index([dueDate])
   @@index([parentId])
   @@index([acceptanceStatus])
+  @@index([nextRecurrenceDate])
+  @@index([recurrenceParentId])
 }
 
 model Note {
@@ -201,6 +214,7 @@ model ReminderLog {
 
   @@index([recipientId])
   @@index([taskId])
+  @@index([taskId, recipientId, type, sentAt])
 }
 
 model Attachment {
@@ -225,6 +239,21 @@ model AppSetting {
   id    String @id @default(uuid())
   key   String @unique
   value String
+}
+
+model UserPreference {
+  id                        String   @id @default(uuid())
+  userId                    String   @unique
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailDigestEnabled        Boolean  @default(true)
+  emailRemindersEnabled     Boolean  @default(true)
+  emailOverdueAlertsEnabled Boolean  @default(true)
+  emailBlockerAlertsEnabled Boolean  @default(true)
+  quietHoursStart           String?  // "22:00" HH:mm format
+  quietHoursEnd             String?  // "07:00" HH:mm format
+  theme                     String   @default("system") // light, dark, system
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 }
 
 model UserAssignment {

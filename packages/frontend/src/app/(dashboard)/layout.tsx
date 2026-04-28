@@ -57,7 +57,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen flex">
       {/* Mobile header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b p-4 flex items-center gap-2">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-background border-b p-4 flex items-center gap-2">
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-md hover:bg-accent shrink-0">
           {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
@@ -69,7 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-30 w-64 bg-white border-r transform transition-transform lg:translate-x-0",
+        "fixed inset-y-0 left-0 z-30 w-64 bg-background border-r transform transition-transform lg:translate-x-0",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex flex-col h-full">
@@ -145,7 +145,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main content */}
       <main className="flex-1 lg:ml-64 mt-16 lg:mt-0 pb-20 lg:pb-0">
-        <div className="hidden lg:block sticky top-0 z-10 bg-white border-b px-6 py-3">
+        <div className="hidden lg:block sticky top-0 z-10 bg-background border-b px-6 py-3">
           <GlobalSearch />
         </div>
         <div className="p-4 md:p-6">{children}</div>

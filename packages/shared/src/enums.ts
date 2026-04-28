@@ -44,6 +44,15 @@ export enum NoteType {
   SYSTEM_LOG = 'System Log',
 }
 
+export enum RecurrenceType {
+  DAILY = 'daily',
+  WEEKLY = 'weekly',
+  BIWEEKLY = 'biweekly',
+  MONTHLY = 'monthly',
+  QUARTERLY = 'quarterly',
+  YEARLY = 'yearly',
+}
+
 export enum WorkstreamCode {
   STR = 'STR',
   COM = 'COM',

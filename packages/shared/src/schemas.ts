@@ -28,7 +28,12 @@ export const createTaskSchema = z.object({
   workstreamId: z.string().optional(),
   parentId: z.string().optional(),
   waitingOnWhom: z.string().optional(),
-  recurringCron: z.string().optional(),
+  recurrenceType: z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']).optional(),
+  recurrenceInterval: z.number().int().min(1).optional(),
+  recurrenceDays: z.string().optional(),
+  recurrenceStartDate: z.string().optional(),
+  recurrenceEndDate: z.string().optional(),
+  recurrenceCount: z.number().int().min(1).optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -42,7 +47,12 @@ export const updateTaskSchema = z.object({
   workstreamId: z.string().nullable().optional(),
   parentId: z.string().nullable().optional(),
   waitingOnWhom: z.string().nullable().optional(),
-  recurringCron: z.string().nullable().optional(),
+  recurrenceType: z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']).nullable().optional(),
+  recurrenceInterval: z.number().int().min(1).nullable().optional(),
+  recurrenceDays: z.string().nullable().optional(),
+  recurrenceStartDate: z.string().nullable().optional(),
+  recurrenceEndDate: z.string().nullable().optional(),
+  recurrenceCount: z.number().int().min(1).nullable().optional(),
 });
 
 export const addNoteSchema = z.object({
@@ -127,6 +137,18 @@ export const resetPasswordSchema = z.object({
   userId: z.string(),
   newPassword: z.string().min(8).optional(),
 });
+
+export const updatePreferencesSchema = z.object({
+  emailDigestEnabled: z.boolean().optional(),
+  emailRemindersEnabled: z.boolean().optional(),
+  emailOverdueAlertsEnabled: z.boolean().optional(),
+  emailBlockerAlertsEnabled: z.boolean().optional(),
+  quietHoursStart: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
+  quietHoursEnd: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
+  theme: z.enum(['light', 'dark', 'system']).optional(),
+});
+
+export type UpdatePreferencesInput = z.infer<typeof updatePreferencesSchema>;
 
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;

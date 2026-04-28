@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCreateTask } from "@/hooks/use-tasks";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
 import { useAuthStore } from "@/store/auth-store";
+import { RecurrencePicker, RecurrenceData } from "@/components/recurrence-picker";
 
 interface TaskFormDialogProps {
   open: boolean;
@@ -23,6 +24,14 @@ export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
   const [workstreamId, setWorkstreamId] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [recurrence, setRecurrence] = useState<RecurrenceData>({
+    recurrenceType: null,
+    recurrenceInterval: 1,
+    recurrenceDays: null,
+    recurrenceStartDate: null,
+    recurrenceEndDate: null,
+    recurrenceCount: null,
+  });
 
   const { user: currentUser } = useAuthStore();
   const { data: workstreams } = useWorkstreams();
@@ -41,15 +50,26 @@ export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createTask.mutateAsync({
+    const taskData: any = {
       title,
       description: description || undefined,
-      type,
+      type: recurrence.recurrenceType ? "Recurring" : type,
       priority,
       workstreamId: workstreamId || undefined,
       assigneeId: assigneeId || undefined,
       dueDate: dueDate || undefined,
-    });
+    };
+
+    if (recurrence.recurrenceType) {
+      taskData.recurrenceType = recurrence.recurrenceType;
+      taskData.recurrenceInterval = recurrence.recurrenceInterval;
+      taskData.recurrenceDays = recurrence.recurrenceDays || undefined;
+      taskData.recurrenceStartDate = recurrence.recurrenceStartDate || undefined;
+      taskData.recurrenceEndDate = recurrence.recurrenceEndDate || undefined;
+      taskData.recurrenceCount = recurrence.recurrenceCount || undefined;
+    }
+
+    await createTask.mutateAsync(taskData);
     onOpenChange(false);
     // Reset form
     setTitle("");
@@ -59,6 +79,7 @@ export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
     setWorkstreamId("");
     setAssigneeId("");
     setDueDate("");
+    setRecurrence({ recurrenceType: null, recurrenceInterval: 1, recurrenceDays: null, recurrenceStartDate: null, recurrenceEndDate: null, recurrenceCount: null });
   };
 
   return (
@@ -141,6 +162,13 @@ export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
             <label className="text-sm font-medium">Due Date</label>
             <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </div>
+          {(type === "Recurring" || recurrence.recurrenceType) && (
+            <RecurrencePicker
+              value={recurrence}
+              onChange={setRecurrence}
+              defaultStartDate={dueDate}
+            />
+          )}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={createTask.isPending}>

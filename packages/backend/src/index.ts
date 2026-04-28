@@ -25,9 +25,10 @@ import notificationRoutes from './routes/notifications';
 import auditRoutes from './routes/audit';
 import workstreamMemberRoutes from './routes/workstream-members';
 import m365Routes from './routes/m365';
+import preferencesRoutes from './routes/preferences';
 
 // Workers
-import { startWorkers, setupRecurringJobs } from './services/workers';
+import { startWorkers, setupRecurringJobs, getRedisStatus } from './services/workers';
 
 const app = express();
 
@@ -65,7 +66,11 @@ app.use('/api/v1/auth/signup', authLimiter);
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    redis: getRedisStatus(),
+  });
 });
 
 
@@ -85,6 +90,7 @@ app.use('/api/v1/notifications', authenticate, notificationRoutes);
 app.use('/api/v1/audit-logs', authenticate, auditRoutes);
 app.use('/api/v1/workstreams/:id/members', authenticate, workstreamMemberRoutes);
 app.use('/api/v1/m365', authenticate, m365Routes);
+app.use('/api/v1/preferences', authenticate, preferencesRoutes);
 app.use('/api/v1/webhooks', webhookRoutes); // No auth for webhooks
 
 // Admin endpoints

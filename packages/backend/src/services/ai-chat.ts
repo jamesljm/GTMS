@@ -5,6 +5,7 @@ import { createNotification } from '../routes/notifications';
 import { createAuditLog } from '../routes/audit';
 import { getVisibleTaskFilter, canEditTask } from '../middleware/rbac';
 import { AuthUser } from '../middleware/auth';
+import { calculateNextRecurrenceDate } from './recurrence';
 
 const anthropic = config.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: config.ANTHROPIC_API_KEY })
@@ -25,6 +26,11 @@ const tools: Anthropic.Tool[] = [
         assigneeEmail: { type: 'string', description: 'Email of the person to assign to' },
         dueDate: { type: 'string', description: 'Due date in ISO format (YYYY-MM-DD)' },
         waitingOnWhom: { type: 'string', description: 'Who we are waiting on (if type is Waiting On)' },
+        recurrenceType: { type: 'string', enum: ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'], description: 'Recurrence frequency. When set, type will be auto-set to Recurring.' },
+        recurrenceInterval: { type: 'number', description: 'Repeat every N periods (default 1)' },
+        recurrenceDays: { type: 'string', description: 'JSON array of days for weekly (e.g. ["Mon","Wed"]), day number for monthly (e.g. "15"), or ordinal weekday (e.g. "first_Monday")' },
+        recurrenceEndDate: { type: 'string', description: 'Stop recurring after this date (ISO format)' },
+        recurrenceCount: { type: 'number', description: 'Stop after N occurrences' },
       },
       required: ['title', 'type', 'priority'],
     },
@@ -123,21 +129,47 @@ async function executeTool(name: string, input: any, userId: string, user?: Auth
       // Set acceptance status
       const acceptanceStatus = (assigneeId && assigneeId !== userId) ? 'Pending' : 'Accepted';
 
-      const task = await prisma.task.create({
-        data: {
-          title: input.title,
-          description: input.description || null,
-          type: input.type,
-          priority: input.priority,
-          status: 'Not Started',
-          source: 'Chat',
+      const taskData: any = {
+        title: input.title,
+        description: input.description || null,
+        type: input.type,
+        priority: input.priority,
+        status: 'Not Started',
+        source: 'Chat',
+        dueDate: input.dueDate ? new Date(input.dueDate) : null,
+        waitingOnWhom: input.waitingOnWhom || null,
+        workstreamId,
+        assigneeId,
+        createdById: userId,
+        acceptanceStatus,
+      };
+
+      // Handle recurrence
+      if (input.recurrenceType) {
+        taskData.recurrenceType = input.recurrenceType;
+        taskData.recurrenceInterval = input.recurrenceInterval || 1;
+        taskData.recurrenceDays = input.recurrenceDays || null;
+        taskData.recurrenceEndDate = input.recurrenceEndDate ? new Date(input.recurrenceEndDate) : null;
+        taskData.recurrenceCount = input.recurrenceCount || null;
+        taskData.type = 'Recurring';
+        taskData.source = 'Recurring';
+
+        const nextDate = calculateNextRecurrenceDate({
+          recurrenceType: input.recurrenceType,
+          recurrenceInterval: input.recurrenceInterval || 1,
+          recurrenceDays: input.recurrenceDays || null,
+          recurrenceStartDate: null,
+          recurrenceEndDate: input.recurrenceEndDate ? new Date(input.recurrenceEndDate) : null,
+          recurrenceCount: input.recurrenceCount || null,
+          recurrenceOccurrences: 0,
+          nextRecurrenceDate: null,
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
-          waitingOnWhom: input.waitingOnWhom || null,
-          workstreamId,
-          assigneeId,
-          createdById: userId,
-          acceptanceStatus,
-        },
+        });
+        taskData.nextRecurrenceDate = nextDate;
+      }
+
+      const task = await prisma.task.create({
+        data: taskData,
         include: { workstream: true, assignee: { select: { name: true, email: true } } },
       });
 
@@ -363,6 +395,13 @@ ${teamInfo}
 - Type: My Action (ED's own todo), Waiting On (someone else needs to act), Decision (needs decision), Review (needs review), Recurring (periodic)
 - Status: Not Started, In Progress, Waiting On, Blocked, Done, Cancelled
 - Priority: Critical, High, Medium, Low
+
+## Recurring Tasks
+- When the user wants a recurring task, set recurrenceType (daily/weekly/biweekly/monthly/quarterly/yearly)
+- For weekly: use recurrenceDays as JSON array e.g. ["Mon","Wed","Fri"]
+- For monthly: use recurrenceDays as day number e.g. "15" or ordinal e.g. "first_Monday"
+- Set recurrenceInterval for "every 2 weeks" (interval=2, type=weekly) etc.
+- Optionally set recurrenceEndDate or recurrenceCount to limit occurrences
 
 ## Guidelines
 - If the user's intent is ambiguous, ask for clarification

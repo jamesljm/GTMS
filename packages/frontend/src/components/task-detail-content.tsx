@@ -25,6 +25,8 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { formatRecurrenceDescription } from "@/lib/recurrence-utils";
+import { RecurrencePicker, RecurrenceData } from "@/components/recurrence-picker";
 
 interface TaskDetailContentProps {
   taskId: string;
@@ -86,6 +88,11 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
     setSubtaskTitle("");
   }, [taskId]);
 
+  const [editRecurrence, setEditRecurrence] = useState<RecurrenceData>({
+    recurrenceType: null, recurrenceInterval: 1, recurrenceDays: null,
+    recurrenceStartDate: null, recurrenceEndDate: null, recurrenceCount: null,
+  });
+
   const startEditing = () => {
     if (!task) return;
     setEditForm({
@@ -97,6 +104,14 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
       assigneeId: task.assigneeId || "",
       dueDate: task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : "",
       waitingOnWhom: task.waitingOnWhom || "",
+    });
+    setEditRecurrence({
+      recurrenceType: task.recurrenceType || null,
+      recurrenceInterval: task.recurrenceInterval || 1,
+      recurrenceDays: task.recurrenceDays || null,
+      recurrenceStartDate: task.recurrenceStartDate ? format(new Date(task.recurrenceStartDate), "yyyy-MM-dd") : null,
+      recurrenceEndDate: task.recurrenceEndDate ? format(new Date(task.recurrenceEndDate), "yyyy-MM-dd") : null,
+      recurrenceCount: task.recurrenceCount || null,
     });
     setEditing(true);
   };
@@ -114,6 +129,18 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
     const taskDate = task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : null;
     if (formDate !== taskDate) updates.dueDate = formDate || null;
     if (editForm.waitingOnWhom !== (task.waitingOnWhom || "")) updates.waitingOnWhom = editForm.waitingOnWhom || null;
+
+    // Recurrence updates
+    if (editRecurrence.recurrenceType !== (task.recurrenceType || null)) {
+      updates.recurrenceType = editRecurrence.recurrenceType;
+    }
+    if (editRecurrence.recurrenceType) {
+      if (editRecurrence.recurrenceInterval !== (task.recurrenceInterval || 1)) updates.recurrenceInterval = editRecurrence.recurrenceInterval;
+      if (editRecurrence.recurrenceDays !== (task.recurrenceDays || null)) updates.recurrenceDays = editRecurrence.recurrenceDays;
+      if (editRecurrence.recurrenceStartDate !== (task.recurrenceStartDate ? format(new Date(task.recurrenceStartDate), "yyyy-MM-dd") : null)) updates.recurrenceStartDate = editRecurrence.recurrenceStartDate;
+      if (editRecurrence.recurrenceEndDate !== (task.recurrenceEndDate ? format(new Date(task.recurrenceEndDate), "yyyy-MM-dd") : null)) updates.recurrenceEndDate = editRecurrence.recurrenceEndDate;
+      if (editRecurrence.recurrenceCount !== (task.recurrenceCount || null)) updates.recurrenceCount = editRecurrence.recurrenceCount;
+    }
 
     if (Object.keys(updates).length > 1) {
       updateTask.mutate(updates);
@@ -348,6 +375,13 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
                   />
                 </div>
               </div>
+              {(editForm.type === "Recurring" || editRecurrence.recurrenceType) && (
+                <RecurrencePicker
+                  value={editRecurrence}
+                  onChange={setEditRecurrence}
+                  defaultStartDate={editForm.dueDate}
+                />
+              )}
             </div>
           ) : (
             <>
@@ -376,6 +410,28 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
                   <p className="font-medium">{task.createdBy?.name}</p>
                 </div>
               </div>
+
+              {/* Recurrence info */}
+              {task.recurrenceType && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground text-xs">Recurrence</span>
+                  <p className="font-medium">{formatRecurrenceDescription(task)}</p>
+                  {task.recurrenceOccurrences > 0 && (
+                    <p className="text-xs text-muted-foreground">{task.recurrenceOccurrences} instances created</p>
+                  )}
+                </div>
+              )}
+              {task.recurrenceParentId && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground text-xs">Recurring Instance</span>
+                  <button
+                    className="text-primary hover:underline text-sm block"
+                    onClick={() => onNavigateToTask?.(task.recurrenceParentId)}
+                  >
+                    View recurring template
+                  </button>
+                </div>
+              )}
             </>
           )}
 

@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { config } from '../config';
 import { prisma } from '../prisma';
+import { createNotification } from '../routes/notifications';
 
 const resend = config.RESEND_API_KEY ? new Resend(config.RESEND_API_KEY) : null;
 
@@ -137,5 +138,109 @@ export async function sendWeeklyDigest(userId: string) {
     });
   } catch (err) {
     console.error('Failed to send weekly digest:', err);
+  }
+}
+
+export async function sendOverdueAlert(taskId: string, recipientId: string, escalationLevel: string) {
+  if (!resend) return;
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { workstream: true, assignee: { select: { name: true, email: true } } },
+  });
+  if (!task) return;
+
+  const recipient = await prisma.user.findUnique({ where: { id: recipientId } });
+  if (!recipient) return;
+
+  const overdueDays = Math.floor((Date.now() - (task.dueDate?.getTime() || 0)) / (24 * 60 * 60 * 1000));
+  const levelLabel = escalationLevel === 'ed' ? 'ED Escalation' : escalationLevel === 'hod' ? 'HOD Alert' : 'Overdue';
+
+  const subject = `[GTMS] ${levelLabel}: ${task.title} (${overdueDays} days overdue)`;
+  const html = `
+    <h3>Overdue Task Alert - ${levelLabel}</h3>
+    <p><strong>${task.title}</strong></p>
+    <p>Workstream: ${task.workstream?.name || 'N/A'}</p>
+    <p>Assignee: ${task.assignee?.name || 'Unassigned'}</p>
+    <p>Priority: ${task.priority}</p>
+    <p>Due: ${task.dueDate?.toLocaleDateString('en-MY') || 'N/A'}</p>
+    <p style="color: #dc2626; font-weight: bold;">${overdueDays} day(s) overdue</p>
+    ${task.description ? `<p>${task.description}</p>` : ''}
+    <hr>
+    <p><em>This is an automated escalation alert from GTMS.</em></p>
+  `;
+
+  try {
+    const result = await resend.emails.send({
+      from: config.RESEND_FROM_EMAIL,
+      to: recipient.email,
+      subject,
+      html,
+    });
+
+    await prisma.reminderLog.create({
+      data: { type: 'overdue_alert', recipientId, taskId, emailId: result.data?.id },
+    });
+
+    await createNotification(
+      recipientId,
+      'TASK_OVERDUE',
+      `Task overdue (${overdueDays}d)`,
+      `${task.title} is ${overdueDays} day(s) overdue`,
+      taskId,
+    ).catch(() => {});
+  } catch (err) {
+    console.error('Failed to send overdue alert:', err);
+  }
+}
+
+export async function sendBlockerAlert(taskId: string, recipientId: string, escalationLevel: string) {
+  if (!resend) return;
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { workstream: true, assignee: { select: { name: true, email: true } } },
+  });
+  if (!task) return;
+
+  const recipient = await prisma.user.findUnique({ where: { id: recipientId } });
+  if (!recipient) return;
+
+  const levelLabel = escalationLevel === 'ed' ? 'ED Escalation' : escalationLevel === 'hod' ? 'HOD Alert' : 'Blocker';
+
+  const subject = `[GTMS] ${levelLabel}: ${task.title} is BLOCKED`;
+  const html = `
+    <h3>Blocked Task Alert - ${levelLabel}</h3>
+    <p><strong>${task.title}</strong></p>
+    <p>Workstream: ${task.workstream?.name || 'N/A'}</p>
+    <p>Assignee: ${task.assignee?.name || 'Unassigned'}</p>
+    <p>Priority: ${task.priority}</p>
+    <p style="color: #dc2626; font-weight: bold;">Status: BLOCKED</p>
+    ${task.description ? `<p>${task.description}</p>` : ''}
+    <hr>
+    <p><em>This is an automated blocker escalation from GTMS.</em></p>
+  `;
+
+  try {
+    const result = await resend.emails.send({
+      from: config.RESEND_FROM_EMAIL,
+      to: recipient.email,
+      subject,
+      html,
+    });
+
+    await prisma.reminderLog.create({
+      data: { type: 'blocker_escalation', recipientId, taskId, emailId: result.data?.id },
+    });
+
+    await createNotification(
+      recipientId,
+      'TASK_BLOCKED',
+      'Task blocked',
+      `${task.title} is blocked and requires attention`,
+      taskId,
+    ).catch(() => {});
+  } catch (err) {
+    console.error('Failed to send blocker alert:', err);
   }
 }
