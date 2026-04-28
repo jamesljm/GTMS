@@ -172,7 +172,7 @@ export async function spawnRecurringTasks() {
   for (const template of templates) {
     try {
       // Create new task instance
-      await prisma.task.create({
+      const childTask = await prisma.task.create({
         data: {
           title: template.title,
           description: template.description,
@@ -213,6 +213,40 @@ export async function spawnRecurringTasks() {
           `New instance of recurring task: ${template.title}`,
           template.id,
         ).catch(err => console.error('Recurrence notification failed:', err.message));
+      }
+
+      // Copy active email follow-ups from template to child
+      const templateFollowUps = await prisma.taskEmailFollowUp.findMany({
+        where: { taskId: template.id, isActive: true },
+      });
+
+      for (const fu of templateFollowUps) {
+        let childNextSend: Date | null = null;
+        if (fu.sendAt && template.dueDate && template.nextRecurrenceDate) {
+          const offsetMs = fu.sendAt.getTime() - template.dueDate.getTime();
+          childNextSend = new Date(template.nextRecurrenceDate.getTime() + offsetMs);
+        } else if (fu.nextSendDate) {
+          childNextSend = childTask.dueDate || fu.nextSendDate;
+        }
+
+        await prisma.taskEmailFollowUp.create({
+          data: {
+            taskId: childTask.id,
+            senderId: fu.senderId,
+            recipientEmails: fu.recipientEmails,
+            subject: fu.subject,
+            body: fu.body,
+            sendAt: fu.recurrenceType ? null : childNextSend,
+            recurrenceType: fu.recurrenceType,
+            recurrenceInterval: fu.recurrenceInterval,
+            recurrenceDays: fu.recurrenceDays,
+            nextSendDate: childNextSend,
+            recurrenceEndDate: fu.recurrenceEndDate,
+            recurrenceCount: fu.recurrenceCount,
+            sendCount: 0,
+            isActive: true,
+          },
+        });
       }
     } catch (err) {
       console.error(`Failed to spawn recurring task for template ${template.id}:`, err);

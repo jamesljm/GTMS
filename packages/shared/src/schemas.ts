@@ -153,3 +153,31 @@ export type UpdatePreferencesInput = z.infer<typeof updatePreferencesSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;
 export type UpdateDepartmentInput = z.infer<typeof updateDepartmentSchema>;
+
+export const createEmailFollowUpSchema = z.object({
+  recipientEmails: z.array(z.string().email()).min(1).max(20),
+  subject: z.string().min(1).max(500),
+  body: z.string().min(1).max(10000),
+  sendAt: z.string().optional(),
+  recurrenceType: z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']).optional(),
+  recurrenceInterval: z.number().int().min(1).optional(),
+  recurrenceDays: z.string().optional(),
+  recurrenceEndDate: z.string().optional(),
+  recurrenceCount: z.number().int().min(1).optional(),
+});
+
+export const updateEmailFollowUpSchema = z.object({
+  recipientEmails: z.array(z.string().email()).min(1).max(20).optional(),
+  subject: z.string().min(1).max(500).optional(),
+  body: z.string().min(1).max(10000).optional(),
+  sendAt: z.string().nullable().optional(),
+  recurrenceType: z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']).nullable().optional(),
+  recurrenceInterval: z.number().int().min(1).nullable().optional(),
+  recurrenceDays: z.string().nullable().optional(),
+  recurrenceEndDate: z.string().nullable().optional(),
+  recurrenceCount: z.number().int().min(1).nullable().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export type CreateEmailFollowUpInput = z.infer<typeof createEmailFollowUpSchema>;
+export type UpdateEmailFollowUpInput = z.infer<typeof updateEmailFollowUpSchema>;

@@ -38,6 +38,7 @@ const WEEKLY_DIGEST_QUEUE = 'weekly-digest';
 const TASK_REMINDER_QUEUE = 'task-reminder';
 const RECURRING_TASKS_QUEUE = 'recurring-tasks';
 const OVERDUE_BLOCKER_QUEUE = 'overdue-blocker-alerts';
+const EMAIL_FOLLOWUP_QUEUE = 'email-followup';
 
 export function startWorkers() {
   const conn = getConnection();
@@ -115,6 +116,13 @@ export function startWorkers() {
     await processOverdueBlockerAlerts();
   }, { connection: conn });
 
+  // Email follow-up worker
+  new Worker(EMAIL_FOLLOWUP_QUEUE, async () => {
+    console.log('Running email follow-ups...');
+    const { processEmailFollowUps } = await import('./email-followup-worker');
+    await processEmailFollowUps();
+  }, { connection: conn });
+
   console.log('BullMQ workers started');
 }
 
@@ -126,9 +134,10 @@ export async function setupRecurringJobs() {
   const reminderQueue = new Queue(TASK_REMINDER_QUEUE, { connection: conn });
   const recurringQueue = new Queue(RECURRING_TASKS_QUEUE, { connection: conn });
   const overdueQueue = new Queue(OVERDUE_BLOCKER_QUEUE, { connection: conn });
+  const emailFollowUpQueue = new Queue(EMAIL_FOLLOWUP_QUEUE, { connection: conn });
 
   // Remove existing repeatable jobs
-  for (const queue of [dailyQueue, weeklyQueue, reminderQueue, recurringQueue, overdueQueue]) {
+  for (const queue of [dailyQueue, weeklyQueue, reminderQueue, recurringQueue, overdueQueue, emailFollowUpQueue]) {
     const existing = await queue.getRepeatableJobs();
     for (const job of existing) {
       await queue.removeRepeatableByKey(job.key);
@@ -158,6 +167,11 @@ export async function setupRecurringJobs() {
   // Overdue/blocker alerts at 09:00 MYT daily (01:00 UTC)
   await overdueQueue.add('overdue-blocker-alerts', {}, {
     repeat: { pattern: '0 1 * * *' },
+  });
+
+  // Email follow-ups - every 15 minutes
+  await emailFollowUpQueue.add('email-followup', {}, {
+    repeat: { pattern: '*/15 * * * *' },
   });
 
   console.log('Recurring jobs set up');

@@ -55,6 +55,7 @@ model User {
   auditLogs              AuditLog[]
   workstreamMemberships  WorkstreamMember[]
   preference             UserPreference?
+  emailFollowUpsSent     TaskEmailFollowUp[] @relation("FollowUpSender")
 
   @@index([departmentId])
 }
@@ -132,10 +133,11 @@ model Task {
   acceptanceStatus String? // null=legacy/auto-accepted, Pending, Accepted, Changes Requested, Reproposed
 
   notes         Note[]
-  attachments   Attachment[]
-  reminderLogs  ReminderLog[]
-  proposals     TaskProposal[]
-  notifications Notification[]
+  attachments      Attachment[]
+  reminderLogs     ReminderLog[]
+  proposals        TaskProposal[]
+  notifications    Notification[]
+  emailFollowUps   TaskEmailFollowUp[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -233,6 +235,44 @@ model Attachment {
   createdAt DateTime @default(now())
 
   @@index([taskId])
+}
+
+model TaskEmailFollowUp {
+  id                String    @id @default(uuid())
+  taskId            String
+  task              Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  senderId          String
+  sender            User      @relation("FollowUpSender", fields: [senderId], references: [id])
+  recipientEmails   String    // JSON array: ["alice@example.com"]
+  subject           String
+  body              String    // HTML content
+  sendAt            DateTime? // One-time: exact send DateTime
+  recurrenceType    String?   // daily, weekly, biweekly, monthly, quarterly, yearly
+  recurrenceInterval Int?     @default(1)
+  recurrenceDays    String?   // JSON: ["Mon","Wed"] or "15" or "first_Monday"
+  nextSendDate      DateTime? // Computed: next scheduled send
+  recurrenceEndDate DateTime?
+  recurrenceCount   Int?      // Max sends (null = infinite)
+  sendCount         Int       @default(0)
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  sendLogs          EmailFollowUpLog[]
+
+  @@index([taskId])
+  @@index([isActive, nextSendDate])
+}
+
+model EmailFollowUpLog {
+  id              String            @id @default(uuid())
+  followUpId      String
+  followUp        TaskEmailFollowUp @relation(fields: [followUpId], references: [id], onDelete: Cascade)
+  sentAt          DateTime          @default(now())
+  recipientEmails String            // Snapshot of recipients at send time
+  status          String            @default("sent") // sent, failed
+  errorMessage    String?
+
+  @@index([followUpId])
 }
 
 model AppSetting {

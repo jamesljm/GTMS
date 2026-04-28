@@ -89,3 +89,43 @@ export async function fetchM365Users(): Promise<M365User[]> {
 
   return allUsers;
 }
+
+export interface SendMailOptions {
+  senderMicrosoftId: string;
+  toRecipients: string[];
+  subject: string;
+  htmlBody: string;
+}
+
+export async function sendMailAsUser(options: SendMailOptions): Promise<{ success: boolean; error?: string }> {
+  const token = await getClientCredentialsToken();
+
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${options.senderMicrosoftId}/sendMail`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: {
+          subject: options.subject,
+          body: { contentType: 'HTML', content: options.htmlBody },
+          toRecipients: options.toRecipients.map(email => ({
+            emailAddress: { address: email },
+          })),
+        },
+        saveToSentItems: true,
+      }),
+    }
+  );
+
+  if (res.status === 202 || res.ok) return { success: true };
+
+  const text = await res.text();
+  let detail = '';
+  try { detail = JSON.parse(text).error?.message || text.substring(0, 300); } catch { detail = text.substring(0, 300); }
+  console.error(`Graph sendMail failed for ${options.senderMicrosoftId}:`, res.status, detail);
+  return { success: false, error: detail };
+}

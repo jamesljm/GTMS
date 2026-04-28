@@ -27,6 +27,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { formatRecurrenceDescription } from "@/lib/recurrence-utils";
 import { RecurrencePicker, RecurrenceData } from "@/components/recurrence-picker";
+import { EmailFollowUpSection } from "@/components/email-followup-section";
 
 interface TaskDetailContentProps {
   taskId: string;
@@ -731,6 +732,11 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
               </div>
             )}
           </div>
+
+          <Separator />
+
+          {/* Email Follow-ups */}
+          <EmailFollowUpSection taskId={task.id} canEdit={canEditAll} />
 
           <Separator />
 

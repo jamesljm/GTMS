@@ -26,6 +26,7 @@ import auditRoutes from './routes/audit';
 import workstreamMemberRoutes from './routes/workstream-members';
 import m365Routes from './routes/m365';
 import preferencesRoutes from './routes/preferences';
+import emailFollowUpRoutes from './routes/email-followups';
 
 // Workers
 import { startWorkers, setupRecurringJobs, getRedisStatus } from './services/workers';
@@ -91,6 +92,7 @@ app.use('/api/v1/audit-logs', authenticate, auditRoutes);
 app.use('/api/v1/workstreams/:id/members', authenticate, workstreamMemberRoutes);
 app.use('/api/v1/m365', authenticate, m365Routes);
 app.use('/api/v1/preferences', authenticate, preferencesRoutes);
+app.use('/api/v1/tasks/:taskId/email-followups', authenticate, emailFollowUpRoutes);
 app.use('/api/v1/webhooks', webhookRoutes); // No auth for webhooks
 
 // Admin endpoints
