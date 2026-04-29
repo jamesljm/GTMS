@@ -142,7 +142,7 @@ export default function TeamPage() {
 
   const startEdit = (member: any) => {
     setEditingUser(member.id);
-    setEditForm({ name: member.name, email: member.email, position: member.position || "" });
+    setEditForm({ name: member.name, email: member.email, position: member.position || "", role: member.role });
     setEditAssignments(
       (member.assignments || []).map((a: any) => ({
         _key: a.id,
@@ -323,6 +323,18 @@ export default function TeamPage() {
                   <Input placeholder="Name" value={editForm.name} onChange={e => setEditForm((p: any) => ({ ...p, name: e.target.value }))} />
                   <Input placeholder="Email" value={editForm.email} onChange={e => setEditForm((p: any) => ({ ...p, email: e.target.value }))} />
                   <Input placeholder="Position (user-level)" value={editForm.position} onChange={e => setEditForm((p: any) => ({ ...p, position: e.target.value }))} />
+                  {isED && (
+                    <Select value={editForm.role} onValueChange={v => setEditForm((p: any) => ({ ...p, role: v }))}>
+                      <SelectTrigger><SelectValue placeholder="Role..." /></SelectTrigger>
+                      <SelectContent>
+                        {isSuperAdmin && <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>}
+                        {isED && <SelectItem value="ED">ED</SelectItem>}
+                        <SelectItem value="HOD">HOD</SelectItem>
+                        <SelectItem value="MANAGER">Manager</SelectItem>
+                        <SelectItem value="STAFF">Staff</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
 
                   {/* Assignments section */}
                   <div className="space-y-1.5">
