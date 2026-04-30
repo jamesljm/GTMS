@@ -102,6 +102,7 @@ model Task {
   status         String   @default("Not Started") // Not Started, In Progress, Waiting On, Blocked, Done, Cancelled
   priority       String   @default("Medium") // Critical, High, Medium, Low
   source         String   @default("Manual") // Chat, Email, Manual, Recurring
+  startDate      DateTime?
   dueDate        DateTime?
   completedAt    DateTime?
   waitingOnWhom         String?

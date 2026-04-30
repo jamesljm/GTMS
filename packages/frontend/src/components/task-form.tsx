@@ -23,6 +23,7 @@ export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
   const [priority, setPriority] = useState("Medium");
   const [workstreamId, setWorkstreamId] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
+  const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [recurrence, setRecurrence] = useState<RecurrenceData>({
     recurrenceType: null,
@@ -57,6 +58,7 @@ export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
       priority,
       workstreamId: workstreamId || undefined,
       assigneeId: assigneeId || undefined,
+      startDate: startDate || undefined,
       dueDate: dueDate || undefined,
     };
 
@@ -78,6 +80,7 @@ export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
     setPriority("Medium");
     setWorkstreamId("");
     setAssigneeId("");
+    setStartDate("");
     setDueDate("");
     setRecurrence({ recurrenceType: null, recurrenceInterval: 1, recurrenceDays: null, recurrenceStartDate: null, recurrenceEndDate: null, recurrenceCount: null });
   };
@@ -158,9 +161,15 @@ export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Due Date</label>
-            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Start Date</label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Due Date</label>
+              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </div>
           </div>
           {(type === "Recurring" || recurrence.recurrenceType) && (
             <RecurrencePicker

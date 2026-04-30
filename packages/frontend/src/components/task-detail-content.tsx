@@ -105,6 +105,7 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
       priority: task.priority || "Medium",
       workstreamId: task.workstreamId || "",
       assigneeId: task.assigneeId || "",
+      startDate: task.startDate ? format(new Date(task.startDate), "yyyy-MM-dd") : "",
       dueDate: task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : "",
       waitingOnWhom: task.waitingOnWhom || "",
     });
@@ -128,6 +129,9 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
     if (editForm.priority !== task.priority) updates.priority = editForm.priority;
     if (editForm.workstreamId !== (task.workstreamId || "")) updates.workstreamId = editForm.workstreamId || null;
     if (editForm.assigneeId !== (task.assigneeId || "")) updates.assigneeId = editForm.assigneeId || null;
+    const formStart = editForm.startDate || null;
+    const taskStart = task.startDate ? format(new Date(task.startDate), "yyyy-MM-dd") : null;
+    if (formStart !== taskStart) updates.startDate = formStart || null;
     const formDate = editForm.dueDate || null;
     const taskDate = task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : null;
     if (formDate !== taskDate) updates.dueDate = formDate || null;
@@ -372,6 +376,15 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Start Date</label>
+                  <Input
+                    type="date"
+                    value={editForm.startDate}
+                    onChange={(e) => setEditForm(p => ({ ...p, startDate: e.target.value }))}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Due Date</label>
                   <Input
                     type="date"
@@ -409,6 +422,10 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
                 <div>
                   <span className="text-muted-foreground text-xs">Assignee</span>
                   <p className="font-medium">{task.assignee?.name || "Unassigned"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-xs">Start Date</span>
+                  <p className="font-medium">{task.startDate ? format(new Date(task.startDate), "dd MMM yyyy") : "—"}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground text-xs">Due Date</span>
