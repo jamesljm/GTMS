@@ -10,8 +10,12 @@ import { calculateNextRecurrenceDate } from '../services/recurrence';
 import { sendBlockerAlert, sendStatusChangeAlert } from '../services/email';
 import { getHODForTask } from '../services/escalation';
 import { shouldSendEmail } from '../services/preference-check';
+import quickAddRouter from './tasks-quick-add';
 
 const router = Router();
+
+// Quick Add (natural language) — must be registered before /:id routes
+router.use('/quick-add', quickAddRouter);
 
 function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => {

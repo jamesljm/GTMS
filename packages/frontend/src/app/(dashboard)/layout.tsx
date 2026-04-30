@@ -13,6 +13,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { EmbeddedChatPanel } from "@/components/embedded-chat-panel";
 import { NotificationDropdown } from "@/components/notification-dropdown";
 import { GlobalSearch } from "@/components/global-search";
+import { QuickAddTrigger } from "@/components/quick-add-trigger";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -105,6 +106,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               );
             })}
           </nav>
+
+          {/* Quick Add */}
+          <div className="px-3 pb-2 hidden lg:block">
+            <QuickAddTrigger />
+          </div>
 
           {/* AI Chat Panel */}
           <div className="px-3 pb-2 hidden lg:block">
