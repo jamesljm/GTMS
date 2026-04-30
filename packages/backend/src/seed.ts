@@ -57,7 +57,8 @@ async function main() {
 
   const createdUsers: Record<string, string> = {};
   for (const u of users) {
-    const user = await prisma.user.create({ data: { ...u, passwordHash } });
+    const { department, ...userData } = u;
+    const user = await prisma.user.create({ data: { ...userData, passwordHash } });
     createdUsers[u.email] = user.id;
   }
   console.log(`Seeded ${users.length} users`);

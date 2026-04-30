@@ -12,5 +12,15 @@
     "db:migrate": "pnpm --filter backend db:migrate",
     "db:seed": "pnpm --filter backend db:seed",
     "db:generate": "pnpm --filter backend db:generate"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "msgpackr-extract",
+      "sharp"
+    ]
   }
 }
