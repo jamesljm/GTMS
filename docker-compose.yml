@@ -56,6 +56,20 @@ services:
     depends_on:
       - backend
 
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: postgres
+      TZ: Asia/Kuala_Lumpur
+    volumes:
+      - ./scripts/docker-backup.sh:/backup.sh:ro
+      - "C:/Users/Harmen/Documents/TempHost/GTMS-Backups:/backups"
+    entrypoint: ["sh", "/backup.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   pgdata:
   redisdata:
