@@ -32,10 +32,10 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/gtms
       REDIS_URL: redis://redis:6379
-      CORS_ORIGIN: http://localhost:3000
-      NODE_ENV: development
+      CORS_ORIGIN: https://gtms.geohan.com
+      NODE_ENV: production
     ports:
-      - "3001:3001"
+      - "3005:3001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,11 +48,11 @@ services:
       context: .
       dockerfile: packages/frontend/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+        NEXT_PUBLIC_API_URL: https://api-gtms.geohan.com/api/v1
         NEXT_PUBLIC_MS_CLIENT_ID: ${NEXT_PUBLIC_MS_CLIENT_ID:-}
         NEXT_PUBLIC_MS_TENANT_ID: ${NEXT_PUBLIC_MS_TENANT_ID:-}
     ports:
-      - "3000:3000"
+      - "3002:3000"
     depends_on:
       - backend
 

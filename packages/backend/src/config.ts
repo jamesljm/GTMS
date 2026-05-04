@@ -17,6 +17,7 @@ const envSchema = z.object({
   MS_CLIENT_ID: z.string().default(''),
   MS_TENANT_ID: z.string().default(''),
   MS_CLIENT_SECRET: z.string().default(''),
+  M365_SENDER_EMAIL: z.string().default(''),
 });
 
 export const config = envSchema.parse(process.env);

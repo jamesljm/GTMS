@@ -3,6 +3,7 @@ dist/
 .next/
 .env
 .env.local
+.claude/
 *.log
 .DS_Store
 coverage/

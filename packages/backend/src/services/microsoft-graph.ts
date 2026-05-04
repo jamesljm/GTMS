@@ -97,6 +97,18 @@ export interface SendMailOptions {
   htmlBody: string;
 }
 
+export async function sendMail(toEmail: string, subject: string, htmlBody: string): Promise<{ success: boolean; error?: string }> {
+  if (!config.M365_SENDER_EMAIL) {
+    return { success: false, error: 'M365_SENDER_EMAIL not configured' };
+  }
+  return sendMailAsUser({
+    senderMicrosoftId: config.M365_SENDER_EMAIL,
+    toRecipients: [toEmail],
+    subject,
+    htmlBody,
+  });
+}
+
 export async function sendMailAsUser(options: SendMailOptions): Promise<{ success: boolean; error?: string }> {
   const token = await getClientCredentialsToken();
 

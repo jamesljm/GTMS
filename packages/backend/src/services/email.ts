@@ -1,12 +1,20 @@
-import { Resend } from 'resend';
 import { config } from '../config';
 import { prisma } from '../prisma';
 import { createNotification } from '../routes/notifications';
+import { sendMail } from './microsoft-graph';
 
-const resend = config.RESEND_API_KEY ? new Resend(config.RESEND_API_KEY) : null;
+const isEmailEnabled = () => !!(config.M365_SENDER_EMAIL && config.MS_CLIENT_ID && config.MS_TENANT_ID && config.MS_CLIENT_SECRET);
+
+async function send(to: string, subject: string, html: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    return await sendMail(to, subject, html);
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
 
 export async function sendTaskReminder(taskId: string, recipientId: string) {
-  if (!resend) return;
+  if (!isEmailEnabled()) return;
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -29,29 +37,23 @@ export async function sendTaskReminder(taskId: string, recipientId: string) {
     <p><em>Reply to this email with DONE, IN PROGRESS, or BLOCKED to update the task status.</em></p>
   `;
 
-  try {
-    const result = await resend.emails.send({
-      from: config.RESEND_FROM_EMAIL,
-      to: task.assignee.email,
-      subject,
-      html,
-    });
-
-    await prisma.reminderLog.create({
-      data: {
-        type: 'task_reminder',
-        recipientId,
-        taskId,
-        emailId: result.data?.id,
-      },
-    });
-  } catch (err) {
-    console.error('Failed to send reminder:', err);
+  const result = await send(task.assignee.email, subject, html);
+  if (!result.success) {
+    console.error('Failed to send reminder:', result.error);
+    return;
   }
+
+  await prisma.reminderLog.create({
+    data: {
+      type: 'task_reminder',
+      recipientId,
+      taskId,
+    },
+  });
 }
 
 export async function sendDailyDigest(userId: string) {
-  if (!resend) return;
+  if (!isEmailEnabled()) return;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return;
@@ -83,24 +85,19 @@ export async function sendDailyDigest(userId: string) {
     <ul>${formatTasks(waitingOn) || '<li>None</li>'}</ul>
   `;
 
-  try {
-    const result = await resend.emails.send({
-      from: config.RESEND_FROM_EMAIL,
-      to: user.email,
-      subject: `GTMS Daily Digest - ${now.toLocaleDateString('en-MY')}`,
-      html,
-    });
-
-    await prisma.reminderLog.create({
-      data: { type: 'daily_digest', recipientId: userId, emailId: result.data?.id },
-    });
-  } catch (err) {
-    console.error('Failed to send daily digest:', err);
+  const result = await send(user.email, `GTMS Daily Digest - ${now.toLocaleDateString('en-MY')}`, html);
+  if (!result.success) {
+    console.error('Failed to send daily digest:', result.error);
+    return;
   }
+
+  await prisma.reminderLog.create({
+    data: { type: 'daily_digest', recipientId: userId },
+  });
 }
 
 export async function sendWeeklyDigest(userId: string) {
-  if (!resend) return;
+  if (!isEmailEnabled()) return;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return;
@@ -125,24 +122,19 @@ export async function sendWeeklyDigest(userId: string) {
     </ul>
   `;
 
-  try {
-    const result = await resend.emails.send({
-      from: config.RESEND_FROM_EMAIL,
-      to: user.email,
-      subject: `GTMS Weekly Summary - ${now.toLocaleDateString('en-MY')}`,
-      html,
-    });
-
-    await prisma.reminderLog.create({
-      data: { type: 'weekly_digest', recipientId: userId, emailId: result.data?.id },
-    });
-  } catch (err) {
-    console.error('Failed to send weekly digest:', err);
+  const result = await send(user.email, `GTMS Weekly Summary - ${now.toLocaleDateString('en-MY')}`, html);
+  if (!result.success) {
+    console.error('Failed to send weekly digest:', result.error);
+    return;
   }
+
+  await prisma.reminderLog.create({
+    data: { type: 'weekly_digest', recipientId: userId },
+  });
 }
 
 export async function sendOverdueAlert(taskId: string, recipientId: string, escalationLevel: string) {
-  if (!resend) return;
+  if (!isEmailEnabled()) return;
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -170,28 +162,23 @@ export async function sendOverdueAlert(taskId: string, recipientId: string, esca
     <p><em>This is an automated escalation alert from GTMS.</em></p>
   `;
 
-  try {
-    const result = await resend.emails.send({
-      from: config.RESEND_FROM_EMAIL,
-      to: recipient.email,
-      subject,
-      html,
-    });
-
-    await prisma.reminderLog.create({
-      data: { type: 'overdue_alert', recipientId, taskId, emailId: result.data?.id },
-    });
-
-    await createNotification(
-      recipientId,
-      'TASK_OVERDUE',
-      `Task overdue (${overdueDays}d)`,
-      `${task.title} is ${overdueDays} day(s) overdue`,
-      taskId,
-    ).catch(() => {});
-  } catch (err) {
-    console.error('Failed to send overdue alert:', err);
+  const result = await send(recipient.email, subject, html);
+  if (!result.success) {
+    console.error('Failed to send overdue alert:', result.error);
+    return;
   }
+
+  await prisma.reminderLog.create({
+    data: { type: 'overdue_alert', recipientId, taskId },
+  });
+
+  await createNotification(
+    recipientId,
+    'TASK_OVERDUE',
+    `Task overdue (${overdueDays}d)`,
+    `${task.title} is ${overdueDays} day(s) overdue`,
+    taskId,
+  ).catch(() => {});
 }
 
 export async function sendStatusChangeAlert(
@@ -201,7 +188,7 @@ export async function sendStatusChangeAlert(
   remarks: string,
   changedByName: string,
 ) {
-  if (!resend) return;
+  if (!isEmailEnabled()) return;
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -229,24 +216,19 @@ export async function sendStatusChangeAlert(
     <p><em>This is an automated status change alert from GTMS.</em></p>
   `;
 
-  try {
-    const result = await resend.emails.send({
-      from: config.RESEND_FROM_EMAIL,
-      to: recipient.email,
-      subject,
-      html,
-    });
-
-    await prisma.reminderLog.create({
-      data: { type: 'status_alert', recipientId, taskId, emailId: result.data?.id },
-    });
-  } catch (err) {
-    console.error('Failed to send status change alert:', err);
+  const result = await send(recipient.email, subject, html);
+  if (!result.success) {
+    console.error('Failed to send status change alert:', result.error);
+    return;
   }
+
+  await prisma.reminderLog.create({
+    data: { type: 'status_alert', recipientId, taskId },
+  });
 }
 
 export async function sendBlockerAlert(taskId: string, recipientId: string, escalationLevel: string) {
-  if (!resend) return;
+  if (!isEmailEnabled()) return;
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -272,26 +254,21 @@ export async function sendBlockerAlert(taskId: string, recipientId: string, esca
     <p><em>This is an automated blocker escalation from GTMS.</em></p>
   `;
 
-  try {
-    const result = await resend.emails.send({
-      from: config.RESEND_FROM_EMAIL,
-      to: recipient.email,
-      subject,
-      html,
-    });
-
-    await prisma.reminderLog.create({
-      data: { type: 'blocker_escalation', recipientId, taskId, emailId: result.data?.id },
-    });
-
-    await createNotification(
-      recipientId,
-      'TASK_BLOCKED',
-      'Task blocked',
-      `${task.title} is blocked and requires attention`,
-      taskId,
-    ).catch(() => {});
-  } catch (err) {
-    console.error('Failed to send blocker alert:', err);
+  const result = await send(recipient.email, subject, html);
+  if (!result.success) {
+    console.error('Failed to send blocker alert:', result.error);
+    return;
   }
+
+  await prisma.reminderLog.create({
+    data: { type: 'blocker_escalation', recipientId, taskId },
+  });
+
+  await createNotification(
+    recipientId,
+    'TASK_BLOCKED',
+    'Task blocked',
+    `${task.title} is blocked and requires attention`,
+    taskId,
+  ).catch(() => {});
 }
