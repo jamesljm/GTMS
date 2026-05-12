@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useTask, useUpdateTask, useCreateTask, useAcceptTask, useRequestChanges, useReproposeTask, useRejectProposal, useTaskProposals } from "@/hooks/use-tasks";
+import { useTask, useUpdateTask, useCreateTask, useAcceptTask, useRequestChanges, useReproposeTask, useRejectProposal, useTaskProposals, useDeleteTask } from "@/hooks/use-tasks";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
 import { useAuthStore } from "@/store/auth-store";
 import { canEditAllFields, canDeleteTask } from "@/lib/permissions";
@@ -40,6 +40,7 @@ interface TaskDetailContentProps {
 export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateToTask }: TaskDetailContentProps) {
   const { data: task, isLoading } = useTask(taskId);
   const updateTask = useUpdateTask();
+  const deleteTask = useDeleteTask();
   const createTask = useCreateTask();
   const acceptTask = useAcceptTask();
   const requestChanges = useRequestChanges();
@@ -284,12 +285,27 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
                   </Button>
                 </>
               ) : (task?.canEdit ?? canEditAll) ? (
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={startEditing}>
-                  <Pencil className="h-3 w-3 mr-1" /> Edit
-                </Button>
+                <>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={startEditing}>
+                    <Pencil className="h-3 w-3 mr-1" /> Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      if (confirm(`Delete task "${task.title}"? This cannot be undone.`)) {
+                        deleteTask.mutateAsync(task.id).then(() => onClose()).catch((err: any) => alert(err?.response?.data?.error || "Failed to delete"));
+                      }
+                    }}
+                    disabled={deleteTask.isPending}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" /> Delete
+                  </Button>
+                </>
               ) : null}
               {inline && (
-                <button onClick={onClose} className="rounded-sm opacity-70 hover:opacity-100 ml-1">
+                <button onClick={onClose} className="rounded-sm opacity-70 hover:opacity-100 ml-3 pl-2 border-l">
                   <X className="h-4 w-4" />
                 </button>
               )}

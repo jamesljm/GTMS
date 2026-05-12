@@ -14,12 +14,13 @@ interface CalendarViewProps {
   isLoading: boolean;
   selectedTaskId: string | null;
   onSelectTask: (taskId: string) => void;
+  onCreateOnDate?: (date: Date) => void;
 }
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAY_NAMES_SHORT = ["M", "T", "W", "T", "F", "S", "S"];
 
-export function CalendarView({ tasks, isLoading, selectedTaskId, onSelectTask }: CalendarViewProps) {
+export function CalendarView({ tasks, isLoading, selectedTaskId, onSelectTask, onCreateOnDate }: CalendarViewProps) {
   const {
     mode, setMode,
     navigateForward, navigateBackward, goToToday,
@@ -92,19 +93,23 @@ export function CalendarView({ tasks, isLoading, selectedTaskId, onSelectTask }:
                       "min-h-[60px] sm:min-h-[100px] border-b border-r p-1 sm:p-1.5 transition-colors",
                       !currentMo && "opacity-40 bg-muted/10",
                       today && "bg-primary/5 ring-1 ring-inset ring-primary/30",
+                      onCreateOnDate && "cursor-pointer hover:bg-muted/30",
                     )}
+                    onClick={() => onCreateOnDate?.(date)}
+                    title={onCreateOnDate ? "Click to add a task on this day" : undefined}
                   >
                     <div className={cn("text-xs mb-0.5 sm:mb-1", today ? "font-bold text-primary" : "text-muted-foreground")}>
                       {format(date, "d")}
                     </div>
                     <div className="space-y-0.5">
                       {dayTasks.slice(0, maxPills).map((task: any) => (
-                        <CalendarTaskPill
-                          key={task.id}
-                          task={task}
-                          isSelected={selectedTaskId === task.id}
-                          onClick={onSelectTask}
-                        />
+                        <div key={task.id} onClick={(e) => e.stopPropagation()}>
+                          <CalendarTaskPill
+                            task={task}
+                            isSelected={selectedTaskId === task.id}
+                            onClick={onSelectTask}
+                          />
+                        </div>
                       ))}
                       {dayTasks.length > maxPills && (
                         <span className="text-[10px] text-muted-foreground px-1 sm:px-1.5">+{dayTasks.length - maxPills} more</span>

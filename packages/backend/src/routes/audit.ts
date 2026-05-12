@@ -15,16 +15,38 @@ export async function createAuditLog(
   action: string,
   entityId?: string,
   details?: Record<string, any>,
+  entity: string = 'Task',
 ) {
   return prisma.auditLog.create({
     data: {
       userId,
       action,
-      entity: 'Task',
+      entity,
       entityId,
       details: details ? JSON.stringify(details) : null,
     },
   });
+}
+
+// Convenience wrapper for security/auth events. Failures are swallowed so audit logging
+// can never block the user-facing flow.
+export function logSecurityEvent(
+  userId: string,
+  action: string,
+  details?: Record<string, any>,
+  entityId?: string,
+) {
+  return prisma.auditLog
+    .create({
+      data: {
+        userId,
+        action,
+        entity: 'Security',
+        entityId,
+        details: details ? JSON.stringify(details) : null,
+      },
+    })
+    .catch((err) => console.error('Security audit log failed:', err.message));
 }
 
 // GET / - admin: all audit logs

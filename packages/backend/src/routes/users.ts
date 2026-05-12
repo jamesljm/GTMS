@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { prisma } from '../prisma';
 import { AppError } from '../middleware/error';
 import { canManageUsers } from '../middleware/rbac';
+import { logSecurityEvent } from './audit';
 import bcrypt from 'bcryptjs';
 
 const router = Router();
@@ -64,57 +65,6 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   res.json(user);
 }));
 
-// POST / - create user
-router.post('/', asyncHandler(async (req: Request, res: Response) => {
-  if (!canManageUsers(req.user!)) {
-    throw new AppError(403, 'Insufficient permissions to manage users');
-  }
-
-  const { email, name, role, position, departmentId, password } = req.body;
-  if (!email || !name) throw new AppError(400, 'email and name are required');
-
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) throw new AppError(409, 'Email already in use');
-
-  // Only SUPER_ADMIN can create a SUPER_ADMIN user
-  if (role === 'SUPER_ADMIN' && req.user!.role !== 'SUPER_ADMIN') {
-    throw new AppError(403, 'Only SUPER_ADMIN can assign SUPER_ADMIN role');
-  }
-
-  // HOD forces departmentId to own dept (SUPER_ADMIN and ED can assign any dept)
-  let finalDepartmentId = departmentId || null;
-  if (req.user!.role === 'HOD') {
-    finalDepartmentId = req.user!.departmentId;
-  }
-
-  const generatedPassword = password || crypto.randomBytes(8).toString('base64url').slice(0, 12);
-  const passwordHash = await bcrypt.hash(generatedPassword, 12);
-  const user = await prisma.user.create({
-    data: {
-      email,
-      name,
-      role: role || 'STAFF',
-      position: position || '',
-      departmentId: finalDepartmentId,
-      passwordHash,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      position: true,
-      departmentId: true,
-      dept: { select: { id: true, name: true, code: true } },
-    },
-  });
-
-  res.status(201).json({
-    ...user,
-    ...(password ? {} : { temporaryPassword: generatedPassword }),
-  });
-}));
-
 // PATCH /:id - update user
 router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
   if (!canManageUsers(req.user!)) {
@@ -138,14 +88,16 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
     throw new AppError(403, 'HOD cannot change user roles');
   }
 
-  // Only SUPER_ADMIN can assign SUPER_ADMIN role
-  if (role === 'SUPER_ADMIN' && req.user!.role !== 'SUPER_ADMIN') {
-    throw new AppError(403, 'Only SUPER_ADMIN can assign SUPER_ADMIN role');
+  // SUPER_ADMIN role is determined exclusively by Entra ID security group membership;
+  // it cannot be assigned manually via this API.
+  if (role === 'SUPER_ADMIN') {
+    throw new AppError(403, 'SUPER_ADMIN role is managed by Entra ID security group, not editable here');
   }
 
-  // Prevent non-SUPER_ADMIN from demoting a SUPER_ADMIN
-  if (targetUser.role === 'SUPER_ADMIN' && req.user!.role !== 'SUPER_ADMIN') {
-    throw new AppError(403, 'Only SUPER_ADMIN can modify another SUPER_ADMIN');
+  // Prevent anyone from demoting a SUPER_ADMIN through this endpoint —
+  // demotion happens automatically when they're removed from the AD group.
+  if (targetUser.role === 'SUPER_ADMIN') {
+    throw new AppError(403, 'SUPER_ADMIN users are managed via Entra ID; cannot edit role here');
   }
 
   const user = await prisma.user.update({
@@ -168,6 +120,16 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
     },
   });
 
+  // Log role changes specifically (high-impact privileged action)
+  if (role !== undefined && role !== targetUser.role) {
+    logSecurityEvent(req.user!.id, 'user.role_changed', {
+      targetUserId: req.params.id,
+      targetEmail: targetUser.email,
+      from: targetUser.role,
+      to: role,
+    }, req.params.id);
+  }
+
   res.json(user);
 }));
 
@@ -186,10 +148,19 @@ router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
+  const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: { email: true, role: true } });
   await prisma.user.update({
     where: { id: req.params.id },
     data: { isActive: false },
   });
+
+  if (target) {
+    logSecurityEvent(req.user!.id, 'user.deactivated', {
+      targetUserId: req.params.id,
+      targetEmail: target.email,
+      targetRole: target.role,
+    }, req.params.id);
+  }
 
   res.json({ ok: true });
 }));

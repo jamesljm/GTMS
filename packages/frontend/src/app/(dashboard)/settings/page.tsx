@@ -18,10 +18,6 @@ import { cn } from "@/lib/utils";
 export default function SettingsPage() {
   const { user } = useAuthStore();
   const isED = user?.role === "SUPER_ADMIN" || user?.role === "ED";
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
   const [exportingJson, setExportingJson] = useState(false);
   const [dbUrl, setDbUrl] = useState("");
@@ -48,26 +44,6 @@ export default function SettingsPage() {
       setTheme(preferences.theme);
     }
   }, [preferences?.theme, mounted, setTheme]);
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-    setLoading(true);
-    try {
-      await api.post("/auth/change-password", { currentPassword, newPassword });
-      toast.success("Password changed successfully");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Failed to change password");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleExportCsv = async () => {
     setExportingCsv(true);
@@ -152,31 +128,6 @@ export default function SettingsPage() {
                   <p className="font-medium">{user?.department?.name || "No Department"}</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Change Password</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Current Password</label>
-                  <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">New Password</label>
-                  <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Confirm New Password</label>
-                  <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
-                </div>
-                <Button type="submit" disabled={loading}>
-                  {loading ? "Changing..." : "Change Password"}
-                </Button>
-              </form>
             </CardContent>
           </Card>
 

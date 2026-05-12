@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,17 +14,25 @@ import { RecurrencePicker, RecurrenceData } from "@/components/recurrence-picker
 interface TaskFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultStartDate?: string;
 }
 
-export function TaskFormDialog({ open, onOpenChange }: TaskFormDialogProps) {
+export function TaskFormDialog({ open, onOpenChange, defaultStartDate }: TaskFormDialogProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState("My Action");
   const [priority, setPriority] = useState("Medium");
   const [workstreamId, setWorkstreamId] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
-  const [startDate, setStartDate] = useState("");
+  const [startDate, setStartDate] = useState(defaultStartDate || "");
   const [dueDate, setDueDate] = useState("");
+
+  // Sync default start date when it changes (e.g., user clicks a different calendar day)
+  useEffect(() => {
+    if (open && defaultStartDate !== undefined) {
+      setStartDate(defaultStartDate);
+    }
+  }, [open, defaultStartDate]);
   const [recurrence, setRecurrence] = useState<RecurrenceData>({
     recurrenceType: null,
     recurrenceInterval: 1,

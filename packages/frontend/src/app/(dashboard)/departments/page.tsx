@@ -10,8 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Pencil, Trash2, X, Check, Users, Crown, Star, Layers } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Check, Users, Crown, Star, Layers, CloudDownload } from "lucide-react";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function DepartmentsPage() {
   const { user } = useAuthStore();
@@ -27,7 +29,23 @@ export default function DepartmentsPage() {
   const [editingDept, setEditingDept] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [showAdd, setShowAdd] = useState(false);
+  const [syncingM365, setSyncingM365] = useState(false);
   const [newDept, setNewDept] = useState({ name: "", code: "", color: "#6366f1", description: "", headId: "" });
+  const queryClient = useQueryClient();
+
+  const handleSyncM365 = async () => {
+    setSyncingM365(true);
+    try {
+      const { data } = await api.post("/m365/sync-departments");
+      const { created, alreadyExisting, totalFromM365 } = data.summary;
+      toast.success(`Synced ${totalFromM365} departments from M365 (${created} new, ${alreadyExisting} already existed)`);
+      queryClient.invalidateQueries({ queryKey: ["departments"] });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to sync from M365");
+    } finally {
+      setSyncingM365(false);
+    }
+  };
   const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void }>({ open: false, title: "", description: "", onConfirm: () => {} });
 
   const startEdit = (dept: any) => {
@@ -43,28 +61,36 @@ export default function DepartmentsPage() {
 
   const saveEdit = async () => {
     if (!editingDept) return;
-    await updateDepartment.mutateAsync({
-      id: editingDept,
-      name: editForm.name,
-      code: editForm.code,
-      color: editForm.color,
-      description: editForm.description || null,
-      headId: editForm.headId || null,
-    });
-    setEditingDept(null);
+    try {
+      await updateDepartment.mutateAsync({
+        id: editingDept,
+        name: editForm.name,
+        code: editForm.code,
+        color: editForm.color,
+        description: editForm.description || null,
+        headId: editForm.headId || null,
+      });
+      setEditingDept(null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to update department");
+    }
   };
 
   const handleAdd = async () => {
     if (!newDept.name || !newDept.code) return;
-    await createDepartment.mutateAsync({
-      name: newDept.name,
-      code: newDept.code.toUpperCase(),
-      color: newDept.color,
-      description: newDept.description || undefined,
-      headId: newDept.headId || null,
-    });
-    setNewDept({ name: "", code: "", color: "#6366f1", description: "", headId: "" });
-    setShowAdd(false);
+    try {
+      await createDepartment.mutateAsync({
+        name: newDept.name,
+        code: newDept.code.toUpperCase(),
+        color: newDept.color,
+        description: newDept.description || undefined,
+        headId: newDept.headId || null,
+      });
+      setNewDept({ name: "", code: "", color: "#6366f1", description: "", headId: "" });
+      setShowAdd(false);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to create department");
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -97,9 +123,14 @@ export default function DepartmentsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Departments</h1>
         {isED && (
-          <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
-            <Plus className="h-4 w-4 mr-1" /> Add Department
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={handleSyncM365} disabled={syncingM365}>
+              <CloudDownload className="h-4 w-4 mr-1" /> {syncingM365 ? "Syncing..." : "Sync from M365"}
+            </Button>
+            <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
+              <Plus className="h-4 w-4 mr-1" /> Add Department
+            </Button>
+          </div>
         )}
       </div>
 

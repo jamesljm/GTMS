@@ -124,24 +124,16 @@ router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
   const existing = await prisma.userAssignment.findFirst({ where: { id, userId } });
   if (!existing) throw new AppError(404, 'Assignment not found');
 
-  // Can't delete last assignment
-  const count = await prisma.userAssignment.count({ where: { userId } });
-  if (count <= 1) {
-    res.status(400).json({ error: 'Cannot delete the only assignment' });
-    return;
-  }
-
   await prisma.userAssignment.delete({ where: { id } });
 
-  // If deleted the primary, make another one primary
+  // If deleted the primary, make another one primary (or clear primary dept on user if none left)
   if (existing.isPrimary) {
     const next = await prisma.userAssignment.findFirst({ where: { userId }, orderBy: { createdAt: 'asc' } });
     if (next) {
       await prisma.userAssignment.update({ where: { id: next.id }, data: { isPrimary: true } });
-      await prisma.user.update({
-        where: { id: userId },
-        data: { role: next.role, position: next.position, departmentId: next.departmentId },
-      });
+      await prisma.user.update({ where: { id: userId }, data: { departmentId: next.departmentId } });
+    } else {
+      await prisma.user.update({ where: { id: userId }, data: { departmentId: null } });
     }
   }
 

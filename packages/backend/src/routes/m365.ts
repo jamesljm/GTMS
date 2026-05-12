@@ -2,9 +2,12 @@ import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../prisma';
+import { config } from '../config';
 import { AppError } from '../middleware/error';
 import { authorize } from '../middleware/auth';
-import { fetchM365Users } from '../services/microsoft-graph';
+import { fetchM365Users, fetchM365LicenseMap } from '../services/microsoft-graph';
+import { findOrCreateDepartmentByName } from '../services/department-sync';
+import { mapM365DepartmentNames, resolveMappedDepartmentIds } from '../services/department-mapping';
 
 const router = Router();
 
@@ -14,11 +17,33 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
   };
 }
 
-// GET / users — fetch M365 directory and annotate with GTMS status
-router.get('/users', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
-  const m365Users = await fetchM365Users();
+function getAllowedSkuParts(): Set<string> {
+  return new Set(
+    config.M365_ALLOWED_SKU_PARTS.split(',').map(s => s.trim()).filter(Boolean)
+  );
+}
 
-  // Batch-check existing GTMS users
+// Filters M365 users to those holding at least one license whose skuPartNumber is in the allowed set.
+function filterByLicense(users: Array<any>, skuMap: Map<string, string>, allowed: Set<string>) {
+  if (allowed.size === 0) return users;
+  return users.filter(u => {
+    const licenses = u.assignedLicenses || [];
+    return licenses.some((l: { skuId: string }) => {
+      const partNumber = skuMap.get(l.skuId);
+      return partNumber && allowed.has(partNumber);
+    });
+  });
+}
+
+// GET /users — fetch licensed M365 users and annotate with GTMS status + suggested department mapping
+router.get('/users', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
+  const allowed = getAllowedSkuParts();
+  const [allUsers, skuMap] = await Promise.all([
+    fetchM365Users(),
+    fetchM365LicenseMap(),
+  ]);
+  const m365Users = filterByLicense(allUsers, skuMap, allowed);
+
   const emails = m365Users.map(u => (u.mail || u.userPrincipalName).toLowerCase());
   const microsoftIds = m365Users.map(u => u.id);
 
@@ -61,6 +86,7 @@ router.get('/users', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Re
       email,
       jobTitle: u.jobTitle,
       department: u.department,
+      mappedDepartments: mapM365DepartmentNames(u.department),
       mobilePhone: u.mobilePhone,
       status,
       gtmsUserId,
@@ -70,7 +96,7 @@ router.get('/users', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Re
   res.json(annotated);
 }));
 
-// POST /import — import selected M365 users into GTMS
+// POST /import — import selected M365 users into GTMS, applying department mapping
 router.post('/import', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
   const { users } = req.body;
   if (!Array.isArray(users) || users.length === 0) {
@@ -94,8 +120,40 @@ router.post('/import', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: 
   let alreadyLinked = 0;
   let errors = 0;
 
+  // Sync mapped department assignments (multi-dept) for a given user, marking the first as primary.
+  async function syncAssignments(userId: string, departmentIds: string[]) {
+    if (departmentIds.length === 0) return;
+    const existing = await prisma.userAssignment.findMany({
+      where: { userId },
+      select: { id: true, departmentId: true, isPrimary: true },
+    });
+    const existingMap = new Map(existing.map(a => [a.departmentId, a]));
+
+    for (let i = 0; i < departmentIds.length; i++) {
+      const deptId = departmentIds[i];
+      const isPrimary = i === 0;
+      const cur = existingMap.get(deptId);
+      if (cur) {
+        if (cur.isPrimary !== isPrimary) {
+          await prisma.userAssignment.update({ where: { id: cur.id }, data: { isPrimary } });
+        }
+      } else {
+        await prisma.userAssignment.create({
+          data: { userId, departmentId: deptId, role: 'STAFF', isPrimary },
+        });
+      }
+    }
+    // Demote any other primary assignments not in our mapped set
+    if (departmentIds.length > 0) {
+      await prisma.userAssignment.updateMany({
+        where: { userId, departmentId: { notIn: departmentIds }, isPrimary: true },
+        data: { isPrimary: false },
+      });
+    }
+  }
+
   for (const u of users) {
-    const { microsoftId, email, displayName, jobTitle, mobilePhone } = u;
+    const { microsoftId, email, displayName, jobTitle, mobilePhone, department } = u;
     if (!microsoftId || !email || !displayName) {
       results.push({ email: email || '?', displayName: displayName || '?', action: 'error', error: 'Missing required fields' });
       errors++;
@@ -103,9 +161,20 @@ router.post('/import', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: 
     }
 
     try {
+      const mappedIds = await resolveMappedDepartmentIds(department);
+      const primaryDeptId = mappedIds[0] ?? null;
+
       // Check if microsoftId is already linked
       const byMsId = await prisma.user.findUnique({ where: { microsoftId } });
       if (byMsId) {
+        await prisma.user.update({
+          where: { id: byMsId.id },
+          data: {
+            ...(primaryDeptId && byMsId.departmentId !== primaryDeptId ? { departmentId: primaryDeptId } : {}),
+            ...(jobTitle ? { position: jobTitle } : {}),
+          },
+        });
+        await syncAssignments(byMsId.id, mappedIds);
         results.push({ email, displayName, action: 'already_linked', gtmsUserId: byMsId.id });
         alreadyLinked++;
         continue;
@@ -114,11 +183,15 @@ router.post('/import', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: 
       // Check if email already exists
       const byEmail = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
       if (byEmail) {
-        // Link microsoftId to existing user
         await prisma.user.update({
           where: { id: byEmail.id },
-          data: { microsoftId },
+          data: {
+            microsoftId,
+            ...(primaryDeptId ? { departmentId: primaryDeptId } : {}),
+            ...(jobTitle ? { position: jobTitle } : {}),
+          },
         });
+        await syncAssignments(byEmail.id, mappedIds);
         results.push({ email, displayName, action: 'linked', gtmsUserId: byEmail.id });
         linked++;
         continue;
@@ -137,8 +210,10 @@ router.post('/import', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: 
           phone: mobilePhone || '',
           microsoftId,
           passwordHash,
+          departmentId: primaryDeptId,
         },
       });
+      await syncAssignments(newUser.id, mappedIds);
 
       results.push({ email, displayName, action: 'created', temporaryPassword: tempPassword, gtmsUserId: newUser.id });
       created++;
@@ -150,6 +225,38 @@ router.post('/import', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: 
   }
 
   res.json({ summary: { created, linked, alreadyLinked, errors, total: users.length }, results });
+}));
+
+// POST /sync-departments — pull all unique departments from M365 and create missing ones in GTMS
+router.post('/sync-departments', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (_req: Request, res: Response) => {
+  const m365Users = await fetchM365Users();
+  const uniqueNames = Array.from(
+    new Set(
+      m365Users
+        .map(u => u.department?.trim())
+        .filter((d): d is string => !!d)
+    )
+  ).sort();
+
+  let createdCount = 0;
+  let existingCount = 0;
+  const created: string[] = [];
+
+  for (const name of uniqueNames) {
+    const result = await findOrCreateDepartmentByName(name);
+    if (!result) continue;
+    if (result.created) {
+      createdCount++;
+      created.push(name);
+    } else {
+      existingCount++;
+    }
+  }
+
+  res.json({
+    summary: { totalFromM365: uniqueNames.length, created: createdCount, alreadyExisting: existingCount },
+    createdNames: created,
+  });
 }));
 
 export default router;

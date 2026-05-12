@@ -16,7 +16,10 @@ import { useUpdateTask } from "@/hooks/use-tasks";
 import { KanbanColumn } from "./kanban-column";
 import { KanbanCard } from "./kanban-card";
 import { TaskCard } from "@/components/task-card";
+import { StatusChangeDialog } from "@/components/status-change-dialog";
 import { cn } from "@/lib/utils";
+
+const STATUS_REQUIRES_REMARKS = new Set(["Blocked", "Waiting On"]);
 
 const STATUS_COLUMNS = ["Not Started", "In Progress", "Waiting On", "Blocked", "Done"];
 
@@ -36,6 +39,7 @@ export function KanbanView({
 }: KanbanViewProps) {
   const updateTask = useUpdateTask();
   const [activeTask, setActiveTask] = useState<any>(null);
+  const [statusDialog, setStatusDialog] = useState<{ open: boolean; taskId: string; status: "Blocked" | "Waiting On" } | null>(null);
   const [mobileActiveColumn, setMobileActiveColumn] = useState<string>(
     groupBy === "status" ? STATUS_COLUMNS[0] : ""
   );
@@ -79,6 +83,16 @@ export function KanbanView({
     setActiveTask(task || null);
   }, [tasks]);
 
+  const moveStatus = useCallback((taskId: string, status: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || task.status === status) return;
+    if (STATUS_REQUIRES_REMARKS.has(status)) {
+      setStatusDialog({ open: true, taskId, status: status as "Blocked" | "Waiting On" });
+      return;
+    }
+    updateTask.mutate({ id: taskId, status });
+  }, [tasks, updateTask]);
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveTask(null);
     const { active, over } = event;
@@ -88,10 +102,7 @@ export function KanbanView({
     const targetColumnId = over.id as string;
 
     if (groupBy === "status") {
-      const task = tasks.find(t => t.id === taskId);
-      if (task && task.status !== targetColumnId) {
-        updateTask.mutate({ id: taskId, status: targetColumnId });
-      }
+      moveStatus(taskId, targetColumnId);
     } else {
       const task = tasks.find(t => t.id === taskId);
       const newWsId = targetColumnId === "none" ? null : targetColumnId;
@@ -99,14 +110,11 @@ export function KanbanView({
         updateTask.mutate({ id: taskId, workstreamId: newWsId });
       }
     }
-  }, [tasks, groupBy, updateTask]);
+  }, [tasks, groupBy, updateTask, moveStatus]);
 
   const handleMobileMove = useCallback((taskId: string, targetId: string) => {
     if (groupBy === "status") {
-      const task = tasks.find(t => t.id === taskId);
-      if (task && task.status !== targetId) {
-        updateTask.mutate({ id: taskId, status: targetId });
-      }
+      moveStatus(taskId, targetId);
     } else {
       const task = tasks.find(t => t.id === taskId);
       const newWsId = targetId === "none" ? null : targetId;
@@ -114,7 +122,15 @@ export function KanbanView({
         updateTask.mutate({ id: taskId, workstreamId: newWsId });
       }
     }
-  }, [tasks, groupBy, updateTask]);
+  }, [tasks, groupBy, updateTask, moveStatus]);
+
+  const handleStatusDialogConfirm = useCallback((data: { remarks: string; ccUserIds: string[] }) => {
+    if (!statusDialog) return;
+    updateTask.mutate(
+      { id: statusDialog.taskId, status: statusDialog.status, statusRemarks: data.remarks, statusCcUserIds: data.ccUserIds },
+      { onSuccess: () => setStatusDialog(null) },
+    );
+  }, [statusDialog, updateTask]);
 
   if (isLoading) {
     return (
@@ -256,6 +272,16 @@ export function KanbanView({
           </DragOverlay>
         </DndContext>
       </div>
+
+      {statusDialog && (
+        <StatusChangeDialog
+          open={statusDialog.open}
+          onClose={() => setStatusDialog(null)}
+          onConfirm={handleStatusDialogConfirm}
+          status={statusDialog.status}
+          loading={updateTask.isPending}
+        />
+      )}
     </div>
   );
 }

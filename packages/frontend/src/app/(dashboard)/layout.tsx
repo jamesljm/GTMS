@@ -151,11 +151,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* Main content */}
-      <main className="flex-1 lg:ml-64 mt-16 lg:mt-0 pb-20 lg:pb-0">
+      <main className="flex-1 min-w-0 lg:ml-64 mt-16 lg:mt-0 pb-20 lg:pb-0">
         <div className="hidden lg:block sticky top-0 z-10 bg-background border-b px-6 py-3">
           <GlobalSearch />
         </div>
-        <div className="p-4 md:p-6">{children}</div>
+        <div className="p-4 md:p-6 min-w-0">{children}</div>
       </main>
 
       {/* Bottom nav for mobile — hidden when sidebar is open to prevent overlap with Sign Out */}

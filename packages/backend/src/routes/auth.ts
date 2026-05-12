@@ -5,8 +5,9 @@ import jwksRsa from 'jwks-rsa';
 import { config } from '../config';
 import { prisma } from '../prisma';
 import { authenticate } from '../middleware/auth';
-import { validate } from '../middleware/validate';
-import { loginSchema, signupSchema, changePasswordSchema, resetPasswordSchema } from 'shared';
+import { fetchM365User } from '../services/microsoft-graph';
+import { resolveMappedDepartmentIds } from '../services/department-mapping';
+import { logSecurityEvent } from './audit';
 import crypto from 'crypto';
 import { AppError } from '../middleware/error';
 
@@ -44,64 +45,7 @@ function generateTokens(user: { id: string; email: string; name: string; role: s
   return { accessToken, refreshToken };
 }
 
-// POST /signup
-router.post('/signup', validate(signupSchema), asyncHandler(async (req: Request, res: Response) => {
-  const { email, name, password } = req.body;
-
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) throw new AppError(409, 'Email already in use');
-
-  const passwordHash = await bcrypt.hash(password, 12);
-  const user = await prisma.user.create({
-    data: { email, name, passwordHash, role: 'STAFF' },
-    include: { dept: { select: { id: true, name: true, code: true } } },
-  });
-
-  const tokens = generateTokens(user);
-
-  res.status(201).json({
-    ...tokens,
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      position: user.position,
-      departmentId: user.departmentId,
-      department: user.dept,
-      microsoftId: user.microsoftId,
-    },
-  });
-}));
-
-// POST /login - email + password
-router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, res: Response) => {
-  const { email, password } = req.body;
-
-  const user = await prisma.user.findUnique({ where: { email }, include: { dept: { select: { id: true, name: true, code: true } } } });
-  if (!user || !user.isActive) throw new AppError(401, 'Invalid credentials');
-
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) throw new AppError(401, 'Invalid credentials');
-
-  const tokens = generateTokens(user);
-
-  res.json({
-    ...tokens,
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      position: user.position,
-      departmentId: user.departmentId,
-      department: user.dept,
-      microsoftId: user.microsoftId,
-    },
-  });
-}));
-
-// POST /microsoft - Microsoft SSO
+// POST /microsoft - Microsoft SSO (only login method)
 router.post('/microsoft', asyncHandler(async (req: Request, res: Response) => {
   const { idToken } = req.body;
   if (!idToken) throw new AppError(400, 'ID token required');
@@ -126,6 +70,9 @@ router.post('/microsoft', asyncHandler(async (req: Request, res: Response) => {
       ],
     });
   } catch (err: any) {
+    // Best-effort log of failed verification (no userId yet, so log under 'unknown')
+    const ip = req.ip || req.socket?.remoteAddress || null;
+    logSecurityEvent('unknown', 'auth.sso.verify_failed', { reason: err.message, ip });
     throw new AppError(401, `Microsoft token verification failed: ${err.message}`);
   }
 
@@ -133,6 +80,16 @@ router.post('/microsoft', asyncHandler(async (req: Request, res: Response) => {
   if (!email) throw new AppError(401, 'No email in Microsoft token');
   const name = verified.name || email.split('@')[0];
   const microsoftId = verified.oid || verified.sub;
+
+  // Determine if user is in the configured admin AD group
+  const groups: string[] = Array.isArray(verified.groups) ? verified.groups : [];
+  const isAdminFromGroup = !!(config.MS_ADMIN_GROUP_ID && groups.includes(config.MS_ADMIN_GROUP_ID));
+
+  // Pull department + jobTitle from MS Graph (token doesn't include them)
+  const profile = microsoftId ? await fetchM365User(microsoftId) : null;
+  const mappedDeptIds = await resolveMappedDepartmentIds(profile?.department ?? null);
+  const departmentId = mappedDeptIds[0] ?? null;
+  const position = profile?.jobTitle ?? null;
 
   // Find by microsoftId first, then by email
   let user = await prisma.user.findFirst({
@@ -148,20 +105,72 @@ router.post('/microsoft', asyncHandler(async (req: Request, res: Response) => {
         email,
         name,
         passwordHash,
-        role: 'STAFF',
+        role: isAdminFromGroup ? 'SUPER_ADMIN' : 'STAFF',
         microsoftId,
+        ...(departmentId ? { departmentId } : {}),
+        ...(position ? { position } : {}),
       },
       include: { dept: { select: { id: true, name: true, code: true } } },
     });
-  } else if (!user.microsoftId && microsoftId) {
-    // Link microsoftId to existing user found by email
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { microsoftId },
-    });
+  } else {
+    // Sync microsoftId + role + department + position on every login
+    const updates: Record<string, unknown> = {};
+    if (!user.microsoftId && microsoftId) updates.microsoftId = microsoftId;
+
+    if (isAdminFromGroup && user.role !== 'SUPER_ADMIN') {
+      updates.role = 'SUPER_ADMIN';
+    } else if (!isAdminFromGroup && user.role === 'SUPER_ADMIN') {
+      updates.role = 'STAFF';
+    }
+
+    if (departmentId && user.departmentId !== departmentId) updates.departmentId = departmentId;
+    if (position && user.position !== position) updates.position = position;
+
+    if (Object.keys(updates).length > 0) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: updates,
+        include: { dept: { select: { id: true, name: true, code: true } } },
+      });
+    }
   }
 
-  if (!user.isActive) throw new AppError(401, 'Account disabled');
+  // Sync UserAssignments to match the mapped departments from M365.
+  // The first mapped dept is primary; the rest are additional memberships.
+  if (mappedDeptIds.length > 0) {
+    const existingAssignments = await prisma.userAssignment.findMany({
+      where: { userId: user.id },
+      select: { id: true, departmentId: true, isPrimary: true },
+    });
+    const existingMap = new Map(existingAssignments.map(a => [a.departmentId, a]));
+    for (let i = 0; i < mappedDeptIds.length; i++) {
+      const deptId = mappedDeptIds[i];
+      const isPrimary = i === 0;
+      const cur = existingMap.get(deptId);
+      if (cur) {
+        if (cur.isPrimary !== isPrimary) {
+          await prisma.userAssignment.update({ where: { id: cur.id }, data: { isPrimary } });
+        }
+      } else {
+        await prisma.userAssignment.create({
+          data: { userId: user.id, departmentId: deptId, role: user.role, isPrimary },
+        });
+      }
+    }
+  }
+
+  if (!user.isActive) {
+    logSecurityEvent(user.id, 'auth.sso.blocked_inactive', { email: user.email });
+    throw new AppError(401, 'Account disabled');
+  }
+
+  // Successful login
+  logSecurityEvent(user.id, 'auth.sso.success', {
+    email: user.email,
+    ip: req.ip || req.socket?.remoteAddress || null,
+    userAgent: req.headers['user-agent'] || null,
+    isAdminFromGroup,
+  });
 
   const tokens = generateTokens(user);
 
@@ -211,41 +220,6 @@ router.get('/me', authenticate, asyncHandler(async (req: Request, res: Response)
     departmentId: user.departmentId,
     department: user.dept,
     microsoftId: user.microsoftId,
-  });
-}));
-
-// POST /change-password
-router.post('/change-password', authenticate, validate(changePasswordSchema), asyncHandler(async (req: Request, res: Response) => {
-  const { currentPassword, newPassword } = req.body;
-  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-  if (!user) throw new AppError(404, 'User not found');
-
-  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
-  if (!valid) throw new AppError(400, 'Current password is incorrect');
-
-  const passwordHash = await bcrypt.hash(newPassword, 12);
-  await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
-
-  res.json({ message: 'Password changed successfully' });
-}));
-
-// POST /reset-password (SUPER_ADMIN only)
-router.post('/reset-password', authenticate, validate(resetPasswordSchema), asyncHandler(async (req: Request, res: Response) => {
-  if (req.user!.role !== 'SUPER_ADMIN') {
-    throw new AppError(403, 'Only SUPER_ADMIN can reset passwords');
-  }
-
-  const { userId, newPassword } = req.body;
-  const targetUser = await prisma.user.findUnique({ where: { id: userId } });
-  if (!targetUser) throw new AppError(404, 'User not found');
-
-  const generatedPassword = newPassword || crypto.randomBytes(8).toString('base64url').slice(0, 12);
-  const passwordHash = await bcrypt.hash(generatedPassword, 12);
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
-
-  res.json({
-    message: 'Password reset successfully',
-    ...(newPassword ? {} : { temporaryPassword: generatedPassword }),
   });
 }));
 

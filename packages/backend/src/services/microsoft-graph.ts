@@ -57,13 +57,37 @@ export interface M365User {
   jobTitle: string | null;
   department: string | null;
   mobilePhone: string | null;
+  assignedLicenses?: Array<{ skuId: string }>;
+}
+
+// Fetch the tenant's SKU table once → returns a Map<skuId, skuPartNumber>.
+export async function fetchM365LicenseMap(): Promise<Map<string, string>> {
+  if (!config.MS_CLIENT_ID || !config.MS_TENANT_ID || !config.MS_CLIENT_SECRET) {
+    return new Map();
+  }
+  try {
+    const token = await getClientCredentialsToken();
+    const res = await fetch(
+      'https://graph.microsoft.com/v1.0/subscribedSkus?$select=skuId,skuPartNumber',
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!res.ok) {
+      console.error('Failed to fetch subscribedSkus:', res.status, await res.text());
+      return new Map();
+    }
+    const data = await res.json() as { value: Array<{ skuId: string; skuPartNumber: string }> };
+    return new Map(data.value.map(s => [s.skuId, s.skuPartNumber]));
+  } catch (err) {
+    console.error('fetchM365LicenseMap failed:', err);
+    return new Map();
+  }
 }
 
 export async function fetchM365Users(): Promise<M365User[]> {
   const token = await getClientCredentialsToken();
   const allUsers: M365User[] = [];
 
-  let url: string | null = 'https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName,jobTitle,department,mobilePhone&$top=999&$filter=accountEnabled eq true';
+  let url: string | null = 'https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName,jobTitle,department,mobilePhone,assignedLicenses&$top=999&$filter=accountEnabled eq true';
 
   while (url) {
     const res = await fetch(url, {
@@ -88,6 +112,25 @@ export async function fetchM365Users(): Promise<M365User[]> {
   }
 
   return allUsers;
+}
+
+// Fetch a single M365 user by Microsoft Object ID — used during SSO login to sync dept/title
+export async function fetchM365User(microsoftId: string): Promise<M365User | null> {
+  if (!config.MS_CLIENT_ID || !config.MS_TENANT_ID || !config.MS_CLIENT_SECRET) {
+    return null;
+  }
+  try {
+    const token = await getClientCredentialsToken();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/users/${microsoftId}?$select=id,displayName,mail,userPrincipalName,jobTitle,department,mobilePhone`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!res.ok) return null;
+    return await res.json() as M365User;
+  } catch (err) {
+    console.error('fetchM365User failed:', err);
+    return null;
+  }
 }
 
 export interface SendMailOptions {

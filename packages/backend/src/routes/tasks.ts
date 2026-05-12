@@ -302,6 +302,7 @@ router.post('/', validate(createTaskSchema), asyncHandler(async (req: Request, r
     status: data.status,
     priority: data.priority,
     source: data.source,
+    startDate: data.startDate ? new Date(data.startDate) : null,
     dueDate: data.dueDate ? new Date(data.dueDate) : null,
     assigneeId: data.assigneeId,
     workstreamId: data.workstreamId,
@@ -626,6 +627,9 @@ router.patch('/:id', validate(updateTaskSchema), asyncHandler(async (req: Reques
     }
   }
 
+  if (data.startDate !== undefined) {
+    data.startDate = data.startDate ? new Date(data.startDate) : null;
+  }
   if (data.dueDate !== undefined) {
     data.dueDate = data.dueDate ? new Date(data.dueDate) : null;
   }

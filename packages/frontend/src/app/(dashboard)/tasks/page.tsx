@@ -74,6 +74,15 @@ function TasksContent() {
   const [activeView, setActiveView] = useState<ViewType>(initialView);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initialTaskId);
   const [showCreate, setShowCreate] = useState(false);
+  const [createDefaultStartDate, setCreateDefaultStartDate] = useState<string | undefined>(undefined);
+
+  const handleCreateOnDate = useCallback((date: Date) => {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    setCreateDefaultStartDate(`${yyyy}-${mm}-${dd}`);
+    setShowCreate(true);
+  }, []);
   const [filters, setFilters] = useState<Record<string, any>>(initialFilters);
   const initialSearch = searchParams.get("search") || "";
   const [search, setSearch] = useState(initialSearch);
@@ -220,6 +229,7 @@ function TasksContent() {
           isLoading={regularQuery.isLoading}
           selectedTaskId={selectedTaskId}
           onSelectTask={handleSelectTask}
+          onCreateOnDate={handleCreateOnDate}
         />
       )}
     </>
@@ -405,7 +415,11 @@ function TasksContent() {
       )}
 
       {/* Create task dialog */}
-      <TaskFormDialog open={showCreate} onOpenChange={setShowCreate} />
+      <TaskFormDialog
+        open={showCreate}
+        onOpenChange={(o) => { setShowCreate(o); if (!o) setCreateDefaultStartDate(undefined); }}
+        defaultStartDate={createDefaultStartDate}
+      />
     </div>
   );
 }

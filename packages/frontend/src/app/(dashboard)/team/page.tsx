@@ -2,7 +2,7 @@
 
 import { useTeamSummary } from "@/hooks/use-dashboard";
 import { useTasksByAssignee } from "@/hooks/use-tasks";
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword, useWorkstreams } from "@/hooks/use-workstreams";
+import { useUsers, useUpdateUser, useDeleteUser, useWorkstreams } from "@/hooks/use-workstreams";
 import { useDepartments } from "@/hooks/use-departments";
 import { useCreateAssignment, useUpdateAssignment, useDeleteAssignment } from "@/hooks/use-assignments";
 import { useAuthStore } from "@/store/auth-store";
@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TaskCard } from "@/components/task-card";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
@@ -20,7 +19,7 @@ import { FilterBar } from "@/components/views/filter-bar";
 import { filterTasks } from "@/lib/filter-tasks";
 import { cn } from "@/lib/utils";
 import { useState, useCallback } from "react";
-import { Plus, Mail, Pencil, Trash2, X, Check, UserPlus, Star, KeyRound, Copy, Shield, ShieldCheck, CloudDownload } from "lucide-react";
+import { Plus, Mail, Pencil, Trash2, X, Check, Star, Shield, ShieldCheck, CloudDownload } from "lucide-react";
 import { toast } from "sonner";
 
 function RoleBadge({ role }: { role: string }) {
@@ -79,10 +78,8 @@ export default function TeamPage() {
   const { data: tasksByAssignee } = useTasksByAssignee();
   const { data: allUsers } = useUsers();
   const { data: departments } = useDepartments();
-  const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
-  const resetPassword = useResetPassword();
   const createAssignment = useCreateAssignment();
   const updateAssignment = useUpdateAssignment();
   const deleteAssignment = useDeleteAssignment();
@@ -92,19 +89,17 @@ export default function TeamPage() {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [editAssignments, setEditAssignments] = useState<any[]>([]);
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [newUser, setNewUser] = useState({ name: "", email: "", role: "STAFF", position: "", departmentId: "" });
+
+  // Member list search + filters
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberRoleFilter, setMemberRoleFilter] = useState<string>("all");
+  const [memberDeptFilter, setMemberDeptFilter] = useState<string>("all");
 
   // M365 import dialog state
   const [showM365Import, setShowM365Import] = useState(false);
 
   // Confirm dialog state
   const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void }>({ open: false, title: "", description: "", onConfirm: () => {} });
-
-  // Reset password dialog state
-  const [resetPwState, setResetPwState] = useState<{ open: boolean; userId: string; userName: string; newPassword: string; generatedPassword: string }>({
-    open: false, userId: "", userName: "", newPassword: "", generatedPassword: "",
-  });
 
   const handleSelectTask = useCallback((taskId: string) => {
     setSelectedTaskId(taskId);
@@ -142,7 +137,7 @@ export default function TeamPage() {
 
   const startEdit = (member: any) => {
     setEditingUser(member.id);
-    setEditForm({ name: member.name, email: member.email, position: member.position || "", role: member.role });
+    setEditForm({ name: member.name, email: member.email, position: member.position || "", role: member.role, departmentId: member.departmentId || "" });
     setEditAssignments(
       (member.assignments || []).map((a: any) => ({
         _key: a.id,
@@ -166,18 +161,25 @@ export default function TeamPage() {
     if (!editingUser) return;
     try {
       const member = members.find((m: any) => m.id === editingUser);
-      // Save user fields
-      await updateUser.mutateAsync({ id: editingUser, ...editForm });
-      // Process assignment changes
+      const userRole = editForm.role || member?.role || "STAFF";
+      const primary = editAssignments.find(a => a.isPrimary && a.departmentId);
+      const updatePayload: any = { id: editingUser };
+      if (member?.role !== "SUPER_ADMIN") updatePayload.role = userRole;
+      if (primary) updatePayload.departmentId = primary.departmentId;
+      if (Object.keys(updatePayload).length > 1) {
+        await updateUser.mutateAsync(updatePayload);
+      }
+
+      // Process assignment changes — role is just the user's single role; assignments only track department membership
       const origIds = new Set<string>((member?.assignments || []).map((a: any) => a.id));
       for (const a of editAssignments) {
         try {
-          if (a._action === "new" && a.departmentId && a.role) {
-            await createAssignment.mutateAsync({ userId: editingUser, departmentId: a.departmentId, role: a.role, position: a.position || undefined, isPrimary: a.isPrimary || undefined });
+          if (a._action === "new" && a.departmentId) {
+            await createAssignment.mutateAsync({ userId: editingUser, departmentId: a.departmentId, role: userRole, isPrimary: a.isPrimary || undefined });
           } else if (a._action === "existing" && a.id) {
             const orig = member?.assignments?.find((o: any) => o.id === a.id);
-            if (orig && (orig.departmentId !== a.departmentId || orig.role !== a.role || (orig.position || "") !== a.position || !!orig.isPrimary !== !!a.isPrimary)) {
-              await updateAssignment.mutateAsync({ userId: editingUser, id: a.id, departmentId: a.departmentId, role: a.role, position: a.position || undefined, isPrimary: a.isPrimary });
+            if (orig && (orig.departmentId !== a.departmentId || !!orig.isPrimary !== !!a.isPrimary)) {
+              await updateAssignment.mutateAsync({ userId: editingUser, id: a.id, departmentId: a.departmentId, role: userRole, isPrimary: a.isPrimary });
             }
             origIds.delete(a.id);
           }
@@ -200,13 +202,6 @@ export default function TeamPage() {
     }
   };
 
-  const handleAddUser = async () => {
-    if (!newUser.name || !newUser.email) return;
-    await createUser.mutateAsync(newUser);
-    setNewUser({ name: "", email: "", role: "STAFF", position: "", departmentId: "" });
-    setShowAddUser(false);
-  };
-
   const handleDeleteUser = (id: string) => {
     setConfirmState({
       open: true,
@@ -219,29 +214,8 @@ export default function TeamPage() {
     });
   };
 
-  const openResetPassword = (member: any) => {
-    setResetPwState({ open: true, userId: member.id, userName: member.name, newPassword: "", generatedPassword: "" });
-  };
-
-  const handleResetPassword = async () => {
-    try {
-      const result = await resetPassword.mutateAsync({
-        userId: resetPwState.userId,
-        ...(resetPwState.newPassword ? { newPassword: resetPwState.newPassword } : {}),
-      });
-      if (result.temporaryPassword) {
-        setResetPwState(s => ({ ...s, generatedPassword: result.temporaryPassword }));
-      } else {
-        toast.success("Password reset successfully");
-        setResetPwState(s => ({ ...s, open: false }));
-      }
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Failed to reset password");
-    }
-  };
-
   // Use allUsers (which now includes assignments) for display, merge task counts from teamSummary
-  const members = (allUsers || []).map((user: any) => {
+  const allMembers = (allUsers || []).map((user: any) => {
     const summary = teamSummary?.find((s: any) => s.id === user.id);
     return {
       ...user,
@@ -249,6 +223,21 @@ export default function TeamPage() {
       overdueTasks: summary?.overdueTasks ?? 0,
       criticalTasks: summary?.criticalTasks ?? 0,
     };
+  });
+
+  const search = memberSearch.trim().toLowerCase();
+  const members = allMembers.filter((m: any) => {
+    if (memberRoleFilter !== "all" && m.role !== memberRoleFilter) return false;
+    if (memberDeptFilter !== "all") {
+      const inPrimary = m.departmentId === memberDeptFilter;
+      const inAssignments = (m.assignments || []).some((a: any) => a.departmentId === memberDeptFilter);
+      if (!inPrimary && !inAssignments) return false;
+    }
+    if (search) {
+      const haystack = `${m.name || ""} ${m.email || ""} ${m.position || ""}`.toLowerCase();
+      if (!haystack.includes(search)) return false;
+    }
+    return true;
   });
 
   return (
@@ -261,53 +250,46 @@ export default function TeamPage() {
               <CloudDownload className="h-4 w-4 mr-1" /> Import from M365
             </Button>
           )}
-          {isManager && (
-            <Button size="sm" onClick={() => setShowAddUser(!showAddUser)}>
-              <UserPlus className="h-4 w-4 mr-1" /> Add Member
-            </Button>
-          )}
         </div>
       </div>
 
-      {/* Add user form */}
-      {showAddUser && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Input placeholder="Full name" value={newUser.name} onChange={e => setNewUser(p => ({ ...p, name: e.target.value }))} />
-              <Input placeholder="Email" type="email" value={newUser.email} onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))} />
-              <Select value={newUser.role} onValueChange={v => setNewUser(p => ({ ...p, role: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {isSuperAdmin && <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>}
-                  {isED && <SelectItem value="ED">ED</SelectItem>}
-                  <SelectItem value="HOD">HOD</SelectItem>
-                  <SelectItem value="MANAGER">Manager</SelectItem>
-                  <SelectItem value="STAFF">Staff</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input placeholder="Position" value={newUser.position} onChange={e => setNewUser(p => ({ ...p, position: e.target.value }))} />
-              <Select value={newUser.departmentId || "none"} onValueChange={v => setNewUser(p => ({ ...p, departmentId: v === "none" ? "" : v }))}>
-                <SelectTrigger><SelectValue placeholder="Department..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Department</SelectItem>
-                  {departments?.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={handleAddUser} disabled={createUser.isPending}>
-                  <Check className="h-4 w-4 mr-1" /> Save
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setShowAddUser(false)}>
-                  <X className="h-4 w-4 mr-1" /> Cancel
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Member search + filters */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+        <Input
+          placeholder="Search by name, email, or position..."
+          value={memberSearch}
+          onChange={(e) => setMemberSearch(e.target.value)}
+          className="md:max-w-sm"
+        />
+        <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
+          <SelectTrigger className="md:w-[160px]"><SelectValue placeholder="All roles" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All roles</SelectItem>
+            <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+            <SelectItem value="ED">ED</SelectItem>
+            <SelectItem value="HOD">HOD</SelectItem>
+            <SelectItem value="MANAGER">Manager</SelectItem>
+            <SelectItem value="STAFF">Staff</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={memberDeptFilter} onValueChange={setMemberDeptFilter}>
+          <SelectTrigger className="md:w-[200px]"><SelectValue placeholder="All departments" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All departments</SelectItem>
+            {departments?.map((d: any) => (
+              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(memberSearch || memberRoleFilter !== "all" || memberDeptFilter !== "all") && (
+          <Button size="sm" variant="ghost" onClick={() => { setMemberSearch(""); setMemberRoleFilter("all"); setMemberDeptFilter("all"); }}>
+            <X className="h-4 w-4 mr-1" /> Clear
+          </Button>
+        )}
+        <span className="text-xs text-muted-foreground md:ml-auto">
+          {members.length} of {allMembers.length} members
+        </span>
+      </div>
 
       {/* Team summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -320,29 +302,35 @@ export default function TeamPage() {
               {editingUser === member.id ? (
                 /* Edit mode */
                 <div className="space-y-2">
-                  <Input placeholder="Name" value={editForm.name} onChange={e => setEditForm((p: any) => ({ ...p, name: e.target.value }))} />
-                  <Input placeholder="Email" value={editForm.email} onChange={e => setEditForm((p: any) => ({ ...p, email: e.target.value }))} />
-                  <Input placeholder="Position (user-level)" value={editForm.position} onChange={e => setEditForm((p: any) => ({ ...p, position: e.target.value }))} />
-                  {isED && (
-                    <Select value={editForm.role} onValueChange={v => setEditForm((p: any) => ({ ...p, role: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Role..." /></SelectTrigger>
-                      <SelectContent>
-                        {isSuperAdmin && <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>}
-                        {isED && <SelectItem value="ED">ED</SelectItem>}
-                        <SelectItem value="HOD">HOD</SelectItem>
-                        <SelectItem value="MANAGER">Manager</SelectItem>
-                        <SelectItem value="STAFF">Staff</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="rounded-md border bg-muted/40 p-2 space-y-1 text-xs">
+                    <div><span className="text-muted-foreground">Name:</span> <span className="font-medium">{member.name}</span></div>
+                    <div><span className="text-muted-foreground">Email:</span> <span className="font-medium">{member.email}</span></div>
+                    <div><span className="text-muted-foreground">Position:</span> <span className="font-medium">{member.position || "—"}</span></div>
+                  </div>
+
+                  {/* Single role for the user */}
+                  {isED && member.role !== "SUPER_ADMIN" && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Role</label>
+                      <Select value={editForm.role} onValueChange={v => setEditForm((p: any) => ({ ...p, role: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Role..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ED">ED</SelectItem>
+                          <SelectItem value="HOD">HOD</SelectItem>
+                          <SelectItem value="MANAGER">Manager</SelectItem>
+                          <SelectItem value="STAFF">Staff</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
 
-                  {/* Assignments section */}
+                  {/* Department memberships */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Role Assignments</label>
+                    <label className="text-xs font-medium text-muted-foreground">Departments</label>
                     {editAssignments.map((a, idx) => (
                       <div key={a._key} className="flex flex-wrap gap-1.5 items-center">
                         <Select value={a.departmentId || "none"} onValueChange={v => setEditAssignments(prev => prev.map((x, i) => i === idx ? { ...x, departmentId: v === "none" ? "" : v } : x))}>
-                          <SelectTrigger className="h-7 text-xs w-[120px]"><SelectValue placeholder="Dept..." /></SelectTrigger>
+                          <SelectTrigger className="h-7 text-xs flex-1 min-w-[140px]"><SelectValue placeholder="Department..." /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">Select...</SelectItem>
                             {departments?.map((d: any) => (
@@ -350,23 +338,13 @@ export default function TeamPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                        <Select value={a.role} onValueChange={v => setEditAssignments(prev => prev.map((x, i) => i === idx ? { ...x, role: v } : x))}>
-                          <SelectTrigger className="h-7 text-xs w-[100px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {isSuperAdmin && <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>}
-                            <SelectItem value="ED">ED</SelectItem>
-                            <SelectItem value="HOD">HOD</SelectItem>
-                            <SelectItem value="MANAGER">Manager</SelectItem>
-                            <SelectItem value="STAFF">Staff</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input placeholder="Position" className="h-7 text-xs w-[100px]" value={a.position} onChange={e => setEditAssignments(prev => prev.map((x, i) => i === idx ? { ...x, position: e.target.value } : x))} />
                         <button
-                          className={cn("p-0.5 rounded", a.isPrimary ? "text-yellow-500" : "text-muted-foreground hover:text-yellow-500")}
-                          title={a.isPrimary ? "Primary role" : "Set as primary"}
+                          className={cn("flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded", a.isPrimary ? "bg-yellow-100 text-yellow-700" : "text-muted-foreground hover:bg-muted")}
+                          title={a.isPrimary ? "Primary department" : "Set as primary"}
                           onClick={() => setEditAssignments(prev => prev.map((x, i) => ({ ...x, isPrimary: i === idx })))}
                         >
-                          <Star className={cn("h-3.5 w-3.5", a.isPrimary && "fill-current")} />
+                          <Star className={cn("h-3 w-3", a.isPrimary && "fill-current")} />
+                          {a.isPrimary ? "Primary" : "Set primary"}
                         </button>
                         <button className="p-0.5 text-muted-foreground hover:text-destructive" onClick={() => setEditAssignments(prev => prev.filter((_, i) => i !== idx))}>
                           <X className="h-3.5 w-3.5" />
@@ -377,7 +355,7 @@ export default function TeamPage() {
                       className="text-[11px] text-primary hover:underline flex items-center gap-0.5 mt-1"
                       onClick={addAssignmentRow}
                     >
-                      <Plus className="h-3 w-3" /> Add Role
+                      <Plus className="h-3 w-3" /> Add department
                     </button>
                   </div>
 
@@ -413,11 +391,6 @@ export default function TeamPage() {
                   <div className="flex items-center justify-between mt-1.5">
                     <a href={`mailto:${member.email}`} className="text-xs text-primary hover:underline truncate">{member.email}</a>
                     <div className="flex gap-1 shrink-0">
-                      {isSuperAdmin && (
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-amber-600" title="Reset Password" onClick={(e) => { e.stopPropagation(); openResetPassword(member); }}>
-                          <KeyRound className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
                       {isManager && (
                         <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit User" onClick={(e) => { e.stopPropagation(); startEdit(member); }}>
                           <Pencil className="h-3.5 w-3.5" />
@@ -529,51 +502,6 @@ export default function TeamPage() {
 
       {/* M365 import dialog */}
       <M365ImportDialog open={showM365Import} onOpenChange={setShowM365Import} />
-
-      {/* Reset password dialog */}
-      <Dialog open={resetPwState.open} onOpenChange={(open) => { if (!open) setResetPwState(s => ({ ...s, open: false, generatedPassword: "" })); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reset Password</DialogTitle>
-            <DialogDescription>
-              Reset password for {resetPwState.userName}. Leave blank to auto-generate.
-            </DialogDescription>
-          </DialogHeader>
-          {resetPwState.generatedPassword ? (
-            <div className="space-y-3">
-              <p className="text-sm">New password generated:</p>
-              <div className="flex items-center gap-2 bg-muted p-3 rounded-md">
-                <code className="flex-1 font-mono text-sm">{resetPwState.generatedPassword}</code>
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { navigator.clipboard.writeText(resetPwState.generatedPassword); toast.success("Copied to clipboard"); }}>
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">Share this password with the user securely. It won&apos;t be shown again.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <Input
-                type="password"
-                placeholder="New password (min 8 chars) or leave blank"
-                value={resetPwState.newPassword}
-                onChange={e => setResetPwState(s => ({ ...s, newPassword: e.target.value }))}
-              />
-            </div>
-          )}
-          <DialogFooter>
-            {resetPwState.generatedPassword ? (
-              <Button onClick={() => setResetPwState(s => ({ ...s, open: false, generatedPassword: "" }))}>Done</Button>
-            ) : (
-              <>
-                <Button variant="outline" onClick={() => setResetPwState(s => ({ ...s, open: false }))}>Cancel</Button>
-                <Button onClick={handleResetPassword} disabled={resetPassword.isPending}>
-                  {resetPassword.isPending ? "Resetting..." : "Reset Password"}
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -59,17 +59,6 @@ export function useDeleteWorkstream() {
   });
 }
 
-export function useCreateUser() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: { email: string; name: string; role?: string; position?: string; departmentId?: string }) =>
-      api.post("/users", data).then(r => r.data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["users"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-    },
-  });
-}
 
 export function useUpdateUser() {
   const qc = useQueryClient();
@@ -91,13 +80,6 @@ export function useDeleteUser() {
       qc.invalidateQueries({ queryKey: ["users"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
-  });
-}
-
-export function useResetPassword() {
-  return useMutation({
-    mutationFn: (data: { userId: string; newPassword?: string }) =>
-      api.post("/auth/reset-password", data).then(r => r.data),
   });
 }
 

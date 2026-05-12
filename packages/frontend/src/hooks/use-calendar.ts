@@ -61,14 +61,25 @@ export function useCalendar(tasks: any[]) {
     return eachDayOfInterval({ start, end: addDays(start, 6) });
   }, [currentDate]);
 
-  // Tasks grouped by date string for fast lookup
+  // Tasks grouped by date string. A task with both startDate and dueDate appears on
+  // every day in the range. A task with only one date appears just on that day.
   const tasksByDate = useMemo(() => {
     const map = new Map<string, any[]>();
+    const addToDate = (key: string, task: any) => {
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(task);
+    };
     tasks.forEach(task => {
-      if (task.dueDate) {
-        const key = format(new Date(task.dueDate), "yyyy-MM-dd");
-        if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push(task);
+      const start = task.startDate ? new Date(task.startDate) : null;
+      const due = task.dueDate ? new Date(task.dueDate) : null;
+      if (start && due) {
+        // Span every day from start to due (inclusive)
+        const days = eachDayOfInterval({ start, end: due >= start ? due : start });
+        days.forEach(d => addToDate(format(d, "yyyy-MM-dd"), task));
+      } else if (start) {
+        addToDate(format(start, "yyyy-MM-dd"), task);
+      } else if (due) {
+        addToDate(format(due, "yyyy-MM-dd"), task);
       }
     });
     return map;

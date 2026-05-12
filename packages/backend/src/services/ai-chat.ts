@@ -362,54 +362,96 @@ async function executeTool(name: string, input: any, userId: string, user?: Auth
   }
 }
 
-async function buildSystemPrompt(): Promise<string> {
-  const workstreams = await prisma.workstream.findMany({ orderBy: { sortOrder: 'asc' } });
-  const users = await prisma.user.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+async function buildSystemPrompt(userId?: string): Promise<string> {
+  // NOTE: Do NOT include a timestamp here — it would invalidate the prompt cache on every request.
+  // Date awareness is handled per-turn (chrono-node parses dates from user input using the real wall clock).
+  let wsInfo = '';
+  let teamInfo = '';
+  let userIntro = '';
 
-  const now = new Date();
-  const wsInfo = workstreams.map(ws => `${ws.code}: ${ws.name}`).join('\n');
-  const teamInfo = users.map(u => `${u.name} (${u.email}) - ${u.role}, ${u.position || ''}, dept:${u.departmentId || 'none'}`).join('\n');
+  // If we know the user, only include context they care about
+  if (userId) {
+    const me = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        dept: { select: { id: true, name: true, code: true } },
+        workstreamMemberships: { include: { workstream: true } },
+      },
+    });
 
-  return `You are the AI assistant for GTMS (Geohan Task Management System), built for the Executive Director of Geohan Corporation, a Malaysian listed geotechnical contractor (~750 staff, 35+ sites).
+    const isHighLevel = me?.role === 'ED' || me?.role === 'SUPER_ADMIN';
 
-Current date/time: ${now.toISOString()} (Malaysia, GMT+8)
+    // Workstreams: ED/SUPER_ADMIN sees all; others see only their memberships
+    const workstreams = isHighLevel
+      ? await prisma.workstream.findMany({ orderBy: { sortOrder: 'asc' } })
+      : (me?.workstreamMemberships || []).map(m => m.workstream);
+    wsInfo = workstreams.map(ws => `${ws.code}: ${ws.name}`).join('\n') || '(none)';
 
-## Workstreams
+    // Team: ED/SUPER_ADMIN sees all active; others see same-dept + same-workstream colleagues
+    const wsIds = (me?.workstreamMemberships || []).map(m => m.workstreamId);
+    const collaborators = isHighLevel
+      ? await prisma.user.findMany({
+          where: { isActive: true, id: { not: userId } },
+          orderBy: { name: 'asc' },
+        })
+      : await prisma.user.findMany({
+          where: {
+            isActive: true,
+            id: { not: userId },
+            OR: [
+              ...(me?.departmentId ? [{ departmentId: me.departmentId }] : []),
+              ...(wsIds.length ? [{ workstreamMemberships: { some: { workstreamId: { in: wsIds } } } }] : []),
+            ],
+          },
+          orderBy: { name: 'asc' },
+          take: 50,
+        });
+    teamInfo = collaborators.map(u => `${u.name} (${u.email}) - ${u.role}${u.position ? ', ' + u.position : ''}`).join('\n') || '(no listed colleagues)';
+
+    if (me) {
+      userIntro = `## You are talking to
+${me.name} (${me.email}) — ${me.role}${me.position ? ', ' + me.position : ''}${me.dept ? `, in department ${me.dept.name}` : ''}.
+Their primary workstreams: ${(me.workstreamMemberships || []).map(m => m.workstream.code).join(', ') || '(none)'}.
+`;
+    }
+  } else {
+    // Fallback: full context (legacy behaviour)
+    const workstreams = await prisma.workstream.findMany({ orderBy: { sortOrder: 'asc' } });
+    const users = await prisma.user.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+    wsInfo = workstreams.map(ws => `${ws.code}: ${ws.name}`).join('\n');
+    teamInfo = users.map(u => `${u.name} (${u.email}) - ${u.role}, ${u.position || ''}`).join('\n');
+  }
+
+  return `You are the AI assistant for GTMS (Geohan Task Management System).
+
+Operating in Malaysia (GMT+8).
+
+${userIntro}## Workstreams (in scope)
 ${wsInfo}
 
-## Team Members
+## Colleagues (people you can assign tasks to)
 ${teamInfo}
 
-## Your Role
-- Help the ED manage 100+ tasks across 15 workstreams
-- Create, update, and query tasks using the available tools
-- Be concise and action-oriented
-- Use Malaysian business context (e.g., "end of month" = last working day, dates are DD/MM format by default)
-- When the user mentions a person by first name, match to the team member list
-- When the user says "follow up with X", create a "Waiting On" type task
-- When the user says "remind me" or "check on", use appropriate due dates
-- Interpret vague dates: "ASAP" = today/tomorrow, "next week" = Monday, "end of month" = last day of current month, "Q2" = end of June
-- Always confirm actions taken with a brief summary
+## How to behave
+- Be terse. Skip greetings, emojis, bullet menus, and follow-up offers.
+- Act, don't ask. Make reasonable assumptions and create the task. Only ask if a required field truly cannot be inferred.
+- Match first names to the colleague list. Dates default to DD/MM format. Malaysia working week is Mon–Fri.
+- Vague dates: "ASAP"/"today" = today, "tomorrow" = +1 day, "next <weekday>" = the next occurrence of that weekday, "end of month" = last day of current month, "next week" = next Monday.
+- "follow up with X" → create a "Waiting On" task assigned to X.
+- After creating/updating a task, reply with one short line: \`Created task <id>: <title> (due <date>)\`.
 
-## Task Fields
-- Type: My Action (ED's own todo), Waiting On (someone else needs to act), Decision (needs decision), Review (needs review), Recurring (periodic)
-- Status: Not Started, In Progress, Waiting On, Blocked, Done, Cancelled
-- Priority: Critical, High, Medium, Low
+## Task fields
+- Type: My Action | Waiting On | Decision | Review | Recurring
+- Status: Not Started | In Progress | Waiting On | Blocked | Done | Cancelled
+- Priority: Critical | High | Medium | Low (default Medium)
 
-## Recurring Tasks
-- When the user wants a recurring task, set recurrenceType (daily/weekly/biweekly/monthly/quarterly/yearly)
-- For weekly: use recurrenceDays as JSON array e.g. ["Mon","Wed","Fri"]
-- For monthly: use recurrenceDays as day number e.g. "15" or ordinal e.g. "first_Monday"
-- Set recurrenceInterval for "every 2 weeks" (interval=2, type=weekly) etc.
-- Optionally set recurrenceEndDate or recurrenceCount to limit occurrences
+## Recurring
+- For weekly recurrence pass recurrenceDays as JSON array (e.g. ["Mon","Wed"]). For monthly: a day number (e.g. "15") or ordinal (e.g. "first_Monday").
+- recurrenceInterval handles "every N" patterns. recurrenceEndDate / recurrenceCount cap the run.
 
-## Guidelines
-- If the user's intent is ambiguous, ask for clarification
-- For queries, show results in a clean format with the short task ID (first 6 chars)
-- When creating tasks, infer the workstream from context if not specified
-- ALWAYS include the short task ID (first 6 characters of the UUID) in responses so users can reference tasks, e.g. "Task abc123: Follow up with June"
-- When listing tasks, format each as: [ID] Title - Status - Priority - Due date
-- Tasks assigned to others require acceptance from the assignee before they become active`;
+## Output rules
+- Always include the short task ID (first 6 chars of the UUID).
+- When listing tasks: \`[id] title — status — priority — due\`, one per line.`;
 }
 
 export interface ChatResult {
@@ -424,73 +466,192 @@ export async function processChat(
   userId: string,
   user?: AuthUser,
 ): Promise<ChatResult> {
+  if (config.LLM_PROVIDER === 'ollama') {
+    return processChatOllama(message, history, userId, user);
+  }
+  return processChatAnthropic(message, history, userId, user);
+}
+
+async function processChatAnthropic(
+  message: string,
+  history: { role: string; content: string }[],
+  userId: string,
+  user?: AuthUser,
+): Promise<ChatResult> {
   if (!anthropic) {
     return {
       response: 'AI chatbox is not configured. Please set the ANTHROPIC_API_KEY environment variable to enable AI features.',
     };
   }
 
-  const systemPrompt = await buildSystemPrompt();
+  const systemPrompt = await buildSystemPrompt(userId);
 
-  // Build messages from history
-  const messages: Anthropic.MessageParam[] = history
+  // Trim history to the most recent N turns to keep token cost bounded.
+  const trimmedHistory = history
     .filter(m => m.role === 'user' || m.role === 'assistant')
-    .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    .slice(-config.CHAT_HISTORY_LIMIT);
 
-  // Add current message
+  const messages: Anthropic.MessageParam[] = trimmedHistory
+    .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
   messages.push({ role: 'user', content: message });
 
   const actions: any[] = [];
   const toolCallLog: any[] = [];
 
-  // Call Claude with tools
+  // Cache the static system prompt + tools (cache_control on the static block).
+  // The date is appended as a separate, non-cached block so the cache stays valid across days.
+  const now = new Date();
+  // Express the current date in Malaysia time (GMT+8) — what the model needs for "next Monday" etc.
+  const myt = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const dateLine = `Current date/time: ${myt.toISOString().replace('Z', '+08:00')} (Malaysia, ${myt.toUTCString().slice(0, 3)}).`;
+  const systemBlocks: Anthropic.TextBlockParam[] = [
+    { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: dateLine },
+  ];
+
   let response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5-20250929',
-    max_tokens: 2048,
-    system: systemPrompt,
+    model: config.ANTHROPIC_MODEL,
+    max_tokens: config.CHAT_MAX_TOKENS,
+    system: systemBlocks,
     tools,
     messages,
   });
 
-  // Process tool use blocks iteratively
   while (response.stop_reason === 'tool_use') {
     const toolUseBlocks = response.content.filter(
       (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
     );
-
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const block of toolUseBlocks) {
       const result = await executeTool(block.name, block.input, userId, user);
       actions.push({ tool: block.name, input: block.input, result });
       toolCallLog.push({ tool: block.name, input: block.input });
-      toolResults.push({
-        type: 'tool_result',
-        tool_use_id: block.id,
-        content: JSON.stringify(result),
-      });
+      toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
     }
-
-    // Continue conversation with tool results
     messages.push({ role: 'assistant', content: response.content });
     messages.push({ role: 'user', content: toolResults });
-
     response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 2048,
-      system: systemPrompt,
+      model: config.ANTHROPIC_MODEL,
+      max_tokens: config.CHAT_MAX_TOKENS,
+      system: systemBlocks,
       tools,
       messages,
     });
   }
 
-  // Extract text from final response
-  const textBlocks = response.content.filter(
-    (b): b is Anthropic.TextBlock => b.type === 'text'
-  );
+  const textBlocks = response.content.filter((b): b is Anthropic.TextBlock => b.type === 'text');
   const responseText = textBlocks.map(b => b.text).join('\n');
 
   return {
     response: responseText,
+    toolCalls: toolCallLog.length > 0 ? toolCallLog : undefined,
+    actions: actions.length > 0 ? actions : undefined,
+  };
+}
+
+// Convert Anthropic-style tool definitions to OpenAI/Ollama format
+function toolsToOpenAIFormat() {
+  return tools.map(t => ({
+    type: 'function' as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.input_schema,
+    },
+  }));
+}
+
+interface OpenAIMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
+  tool_call_id?: string;
+}
+
+async function callOllama(messages: OpenAIMessage[]): Promise<{
+  message: OpenAIMessage;
+  finish_reason: string;
+}> {
+  const url = `${config.OLLAMA_URL.replace(/\/$/, '')}/v1/chat/completions`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: config.OLLAMA_MODEL,
+      messages,
+      tools: toolsToOpenAIFormat(),
+      max_tokens: 2048,
+      temperature: 0.2,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Ollama API error ${res.status}: ${errText.substring(0, 300)}`);
+  }
+  const data = await res.json() as {
+    choices: Array<{ message: OpenAIMessage; finish_reason: string }>;
+  };
+  if (!data.choices || data.choices.length === 0) {
+    throw new Error('Ollama returned no choices');
+  }
+  return data.choices[0];
+}
+
+async function processChatOllama(
+  message: string,
+  history: { role: string; content: string }[],
+  userId: string,
+  user?: AuthUser,
+): Promise<ChatResult> {
+  if (!config.OLLAMA_URL) {
+    return { response: 'AI chatbox is not configured. Please set OLLAMA_URL.' };
+  }
+
+  const systemPrompt = await buildSystemPrompt(userId);
+  const messages: OpenAIMessage[] = [
+    { role: 'system', content: systemPrompt },
+    ...history
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    { role: 'user', content: message },
+  ];
+
+  const actions: any[] = [];
+  const toolCallLog: any[] = [];
+  const MAX_ITERATIONS = 5;
+  let iteration = 0;
+
+  while (iteration < MAX_ITERATIONS) {
+    iteration++;
+    const choice = await callOllama(messages);
+    const assistantMsg = choice.message;
+
+    if (assistantMsg.tool_calls && assistantMsg.tool_calls.length > 0) {
+      messages.push(assistantMsg);
+      for (const call of assistantMsg.tool_calls) {
+        let parsedInput: any = {};
+        try { parsedInput = JSON.parse(call.function.arguments || '{}'); } catch { parsedInput = {}; }
+        const result = await executeTool(call.function.name, parsedInput, userId, user);
+        actions.push({ tool: call.function.name, input: parsedInput, result });
+        toolCallLog.push({ tool: call.function.name, input: parsedInput });
+        messages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: JSON.stringify(result),
+        });
+      }
+      continue;
+    }
+
+    return {
+      response: assistantMsg.content || '',
+      toolCalls: toolCallLog.length > 0 ? toolCallLog : undefined,
+      actions: actions.length > 0 ? actions : undefined,
+    };
+  }
+
+  return {
+    response: 'Reached maximum tool iterations without a final response.',
     toolCalls: toolCallLog.length > 0 ? toolCallLog : undefined,
     actions: actions.length > 0 ? actions : undefined,
   };

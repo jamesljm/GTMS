@@ -16,8 +16,6 @@ interface AuthState {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (name: string, email: string, password: string) => Promise<void>;
   loginWithMicrosoft: (idToken: string) => Promise<void>;
   logout: () => void;
   fetchUser: () => Promise<void>;
@@ -28,20 +26,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
   isAuthenticated: false,
-
-  login: async (email: string, password: string) => {
-    const { data } = await api.post('/auth/login', { email, password });
-    localStorage.setItem('accessToken', data.accessToken);
-    localStorage.setItem('refreshToken', data.refreshToken);
-    set({ user: data.user, isAuthenticated: true, isLoading: false });
-  },
-
-  signup: async (name: string, email: string, password: string) => {
-    const { data } = await api.post('/auth/signup', { name, email, password });
-    localStorage.setItem('accessToken', data.accessToken);
-    localStorage.setItem('refreshToken', data.refreshToken);
-    set({ user: data.user, isAuthenticated: true, isLoading: false });
-  },
 
   loginWithMicrosoft: async (idToken: string) => {
     const { data } = await api.post('/auth/microsoft', { idToken });

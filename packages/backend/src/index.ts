@@ -96,11 +96,21 @@ app.use('/api/v1/tasks/:taskId/email-followups', authenticate, emailFollowUpRout
 app.use('/api/v1/webhooks', webhookRoutes); // No auth for webhooks
 
 // Admin endpoints
+import { logSecurityEvent } from './routes/audit';
 app.get('/api/v1/admin/db-url', authenticate, (req, res) => {
   if (req.user?.role !== 'SUPER_ADMIN' && req.user?.role !== 'ED') {
+    logSecurityEvent(req.user?.id || 'unknown', 'admin.db_url_access_denied', {
+      role: req.user?.role,
+      ip: req.ip || req.socket?.remoteAddress || null,
+    });
     res.status(403).json({ error: 'Only ED or SUPER_ADMIN can access database URL' });
     return;
   }
+  // Successful access — DATABASE_URL contains the password, so always log who saw it
+  logSecurityEvent(req.user.id, 'admin.db_url_accessed', {
+    role: req.user.role,
+    ip: req.ip || req.socket?.remoteAddress || null,
+  });
   res.json({ url: process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL || '' });
 });
 
