@@ -26,6 +26,7 @@ export function TaskFormDialog({ open, onOpenChange, defaultStartDate }: TaskFor
   const [assigneeId, setAssigneeId] = useState("");
   const [startDate, setStartDate] = useState(defaultStartDate || "");
   const [dueDate, setDueDate] = useState("");
+  const [estimatedHours, setEstimatedHours] = useState("");
 
   // Sync default start date when it changes (e.g., user clicks a different calendar day)
   useEffect(() => {
@@ -68,6 +69,7 @@ export function TaskFormDialog({ open, onOpenChange, defaultStartDate }: TaskFor
       assigneeId: assigneeId || undefined,
       startDate: startDate || undefined,
       dueDate: dueDate || undefined,
+      estimatedHours: estimatedHours ? Number(estimatedHours) : undefined,
     };
 
     if (recurrence.recurrenceType) {
@@ -90,6 +92,7 @@ export function TaskFormDialog({ open, onOpenChange, defaultStartDate }: TaskFor
     setAssigneeId("");
     setStartDate("");
     setDueDate("");
+    setEstimatedHours("");
     setRecurrence({ recurrenceType: null, recurrenceInterval: 1, recurrenceDays: null, recurrenceStartDate: null, recurrenceEndDate: null, recurrenceCount: null });
   };
 
@@ -178,6 +181,17 @@ export function TaskFormDialog({ open, onOpenChange, defaultStartDate }: TaskFor
               <label className="text-sm font-medium">Due Date</label>
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Estimated Duration (hours)</label>
+            <Input
+              type="number"
+              min="0"
+              step="0.25"
+              value={estimatedHours}
+              onChange={(e) => setEstimatedHours(e.target.value)}
+              placeholder="e.g. 2.5"
+            />
           </div>
           {(type === "Recurring" || recurrence.recurrenceType) && (
             <RecurrencePicker

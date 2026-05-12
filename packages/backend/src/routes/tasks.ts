@@ -304,6 +304,7 @@ router.post('/', validate(createTaskSchema), asyncHandler(async (req: Request, r
     source: data.source,
     startDate: data.startDate ? new Date(data.startDate) : null,
     dueDate: data.dueDate ? new Date(data.dueDate) : null,
+    estimatedHours: data.estimatedHours ?? null,
     assigneeId: data.assigneeId,
     workstreamId: data.workstreamId,
     parentId: data.parentId,

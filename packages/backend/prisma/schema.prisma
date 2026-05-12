@@ -105,6 +105,7 @@ model Task {
   startDate      DateTime?
   dueDate        DateTime?
   completedAt    DateTime?
+  estimatedHours Float?
   waitingOnWhom         String?
   recurrenceType        String?   // daily, weekly, biweekly, monthly, quarterly, yearly
   recurrenceInterval    Int?      @default(1)

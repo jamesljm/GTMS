@@ -108,6 +108,7 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
       assigneeId: task.assigneeId || "",
       startDate: task.startDate ? format(new Date(task.startDate), "yyyy-MM-dd") : "",
       dueDate: task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : "",
+      estimatedHours: task.estimatedHours != null ? String(task.estimatedHours) : "",
       waitingOnWhom: task.waitingOnWhom || "",
     });
     setEditRecurrence({
@@ -136,6 +137,9 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
     const formDate = editForm.dueDate || null;
     const taskDate = task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : null;
     if (formDate !== taskDate) updates.dueDate = formDate || null;
+    const formHours = editForm.estimatedHours === "" ? null : Number(editForm.estimatedHours);
+    const taskHours = task.estimatedHours ?? null;
+    if (formHours !== taskHours) updates.estimatedHours = formHours;
     if (editForm.waitingOnWhom !== (task.waitingOnWhom || "")) updates.waitingOnWhom = editForm.waitingOnWhom || null;
 
     // Recurrence updates
@@ -410,6 +414,18 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
                   />
                 </div>
                 <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Estimated Duration (hrs)</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.25"
+                    value={editForm.estimatedHours}
+                    onChange={(e) => setEditForm(p => ({ ...p, estimatedHours: e.target.value }))}
+                    placeholder="e.g. 2.5"
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Waiting On</label>
                   <Input
                     value={editForm.waitingOnWhom}
@@ -447,6 +463,12 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
                   <span className="text-muted-foreground text-xs">Due Date</span>
                   <p className="font-medium">{task.dueDate ? format(new Date(task.dueDate), "dd MMM yyyy") : "No due date"}</p>
                 </div>
+                {task.estimatedHours != null && (
+                  <div>
+                    <span className="text-muted-foreground text-xs">Estimated Duration</span>
+                    <p className="font-medium">{task.estimatedHours} {task.estimatedHours === 1 ? "hour" : "hours"}</p>
+                  </div>
+                )}
                 {task.waitingOnWhom && (
                   <div>
                     <span className="text-muted-foreground text-xs">Waiting On</span>
