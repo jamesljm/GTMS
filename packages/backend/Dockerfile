@@ -20,7 +20,7 @@ RUN pnpm --filter shared build
 FROM build-shared AS build
 WORKDIR /app
 COPY packages/backend/ ./packages/backend/
-RUN cd packages/backend && npx prisma generate
+RUN cd packages/backend && npx prisma generate && npx tsc
 
 # Production
 FROM base AS runner
@@ -37,4 +37,4 @@ WORKDIR /app/packages/backend
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss && npx tsx src/index.ts"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/index.js"]

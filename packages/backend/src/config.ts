@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   DATABASE_URL: z.string(),
-  REDIS_URL: z.string().default('redis://localhost:6379'),
   JWT_SECRET: z.string().default('dev-jwt-secret-change-me'),
   JWT_REFRESH_SECRET: z.string().default('dev-jwt-refresh-secret-change-me'),
   JWT_EXPIRES_IN: z.string().default('4h'),

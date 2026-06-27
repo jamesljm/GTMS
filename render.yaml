@@ -11,8 +11,6 @@ services:
         fromDatabase:
           name: gtms-db
           property: connectionString
-      - key: REDIS_URL
-        value: ""
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
@@ -56,6 +54,4 @@ databases:
     databaseName: gtms
     user: gtms
 
-# Redis not included (no free tier on Render).
-# BullMQ workers (digests, reminders) won't run without Redis,
-# but the core app works fine. Add a Starter Redis ($10/mo) later if needed.
+# Scheduled jobs run in-process via node-cron (no Redis needed).

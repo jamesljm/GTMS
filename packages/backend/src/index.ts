@@ -29,7 +29,7 @@ import preferencesRoutes from './routes/preferences';
 import emailFollowUpRoutes from './routes/email-followups';
 
 // Workers
-import { startWorkers, setupRecurringJobs, getRedisStatus } from './services/workers';
+import { startScheduledJobs, getSchedulerStatus } from './services/workers';
 
 const app = express();
 
@@ -70,7 +70,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    redis: getRedisStatus(),
+    scheduler: getSchedulerStatus(),
   });
 });
 
@@ -113,13 +113,8 @@ async function main() {
     await prisma.$connect();
     console.log('Database connected');
 
-    // Start BullMQ workers
-    try {
-      startWorkers();
-      await setupRecurringJobs();
-    } catch (err) {
-      console.warn('Redis/BullMQ not available, workers disabled:', (err as Error).message);
-    }
+    // Start scheduled jobs
+    startScheduledJobs();
 
     app.listen(config.PORT, () => {
       console.log(`GTMS backend running on port ${config.PORT}`);
