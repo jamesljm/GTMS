@@ -94,10 +94,11 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
     throw new AppError(403, 'SUPER_ADMIN role is managed by Entra ID security group, not editable here');
   }
 
-  // Prevent anyone from demoting a SUPER_ADMIN through this endpoint —
-  // demotion happens automatically when they're removed from the AD group.
-  if (targetUser.role === 'SUPER_ADMIN') {
-    throw new AppError(403, 'SUPER_ADMIN users are managed via Entra ID; cannot edit role here');
+  // A SUPER_ADMIN's global role is Entra-owned: it can't be changed here (promotion
+  // and demotion happen via AD group membership on login). Their other fields —
+  // name, position, department — remain freely editable.
+  if (targetUser.role === 'SUPER_ADMIN' && role !== undefined && role !== targetUser.role) {
+    throw new AppError(403, 'SUPER_ADMIN role is managed via Entra ID and cannot be changed here');
   }
 
   const user = await prisma.user.update({

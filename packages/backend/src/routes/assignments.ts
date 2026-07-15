@@ -49,7 +49,9 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     include: { department: { select: { id: true, name: true, code: true, color: true } } },
   });
 
-  // If isPrimary, update User's primary fields
+  // If isPrimary, sync the User's primary department/position. Note: User.role is
+  // deliberately NOT written here — the global role is owned solely by Entra (for
+  // SUPER_ADMIN) or the users endpoint, so a department change never alters it.
   if (isPrimary) {
     await prisma.userAssignment.updateMany({
       where: { userId, id: { not: assignment.id } },
@@ -57,7 +59,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     });
     await prisma.user.update({
       where: { id: userId },
-      data: { role, position: position || null, departmentId },
+      data: { position: position || null, departmentId },
     });
   }
 
@@ -93,7 +95,9 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
     include: { department: { select: { id: true, name: true, code: true, color: true } } },
   });
 
-  // If setting as primary, unset others and update User
+  // If setting as primary, unset others and sync the User's primary
+  // department/position. User.role is intentionally NOT written here — the
+  // global role is owned by Entra (SUPER_ADMIN) / the users endpoint only.
   if (isPrimary) {
     await prisma.userAssignment.updateMany({
       where: { userId, id: { not: id } },
@@ -102,7 +106,6 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
     await prisma.user.update({
       where: { id: userId },
       data: {
-        role: assignment.role,
         position: assignment.position,
         departmentId: assignment.departmentId,
       },
