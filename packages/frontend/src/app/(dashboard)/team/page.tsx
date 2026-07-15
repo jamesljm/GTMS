@@ -385,7 +385,7 @@ export default function TeamPage() {
                       <p className="font-medium truncate">{member.name}</p>
                       <p className="text-xs text-muted-foreground">{member.position} · {member.department || member.dept?.name || "No Dept"}</p>
                     </div>
-                    <RoleBadge role={member.assignments?.find((a: any) => a.isPrimary)?.role || member.role} />
+                    <RoleBadge role={member.role} />
                   </div>
                   {/* Email + actions row */}
                   <div className="flex items-center justify-between mt-1.5">
