@@ -265,7 +265,6 @@ export default function TeamPage() {
           <SelectTrigger className="md:w-[160px]"><SelectValue placeholder="All roles" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All roles</SelectItem>
-            <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
             <SelectItem value="ED">ED</SelectItem>
             <SelectItem value="HOD">HOD</SelectItem>
             <SelectItem value="MANAGER">Manager</SelectItem>
