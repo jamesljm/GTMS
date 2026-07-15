@@ -57,8 +57,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
   const where: any = {};
 
-  // Only ED can see all logs; others get their own
-  if (req.user!.role !== 'ED') {
+  // Only ED / SUPER_ADMIN can see all logs; others get their own
+  if (req.user!.role !== 'ED' && req.user!.role !== 'SUPER_ADMIN') {
     where.userId = req.user!.id;
   }
 

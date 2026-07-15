@@ -140,7 +140,7 @@ router.post('/microsoft', asyncHandler(async (req: Request, res: Response) => {
   if (mappedDeptIds.length > 0) {
     const existingAssignments = await prisma.userAssignment.findMany({
       where: { userId: user.id },
-      select: { id: true, departmentId: true, isPrimary: true },
+      select: { id: true, departmentId: true, isPrimary: true, role: true },
     });
     const existingMap = new Map(existingAssignments.map(a => [a.departmentId, a]));
     for (let i = 0; i < mappedDeptIds.length; i++) {
@@ -148,8 +148,15 @@ router.post('/microsoft', asyncHandler(async (req: Request, res: Response) => {
       const isPrimary = i === 0;
       const cur = existingMap.get(deptId);
       if (cur) {
-        if (cur.isPrimary !== isPrimary) {
-          await prisma.userAssignment.update({ where: { id: cur.id }, data: { isPrimary } });
+        // Keep isPrimary and role in sync with the account. Assignment.role
+        // mirrors the user's role (both here and in the Team edit UI); without
+        // this, an assignment created while the user was e.g. STAFF stays STAFF
+        // even after promotion, so the Team badge would show a stale role.
+        const updates: { isPrimary?: boolean; role?: string } = {};
+        if (cur.isPrimary !== isPrimary) updates.isPrimary = isPrimary;
+        if (cur.role !== user.role) updates.role = user.role;
+        if (Object.keys(updates).length > 0) {
+          await prisma.userAssignment.update({ where: { id: cur.id }, data: updates });
         }
       } else {
         await prisma.userAssignment.create({
