@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
-import { getVisibleTaskFilter } from '../middleware/rbac';
+import { getVisibleTaskFilter, isOrgAdmin } from '../middleware/rbac';
 
 const router = Router();
 
@@ -210,18 +210,19 @@ router.get('/department-summary', asyncHandler(async (req: Request, res: Respons
 router.get('/team-summary', asyncHandler(async (req: Request, res: Response) => {
   const user = req.user!;
 
-  // Scope user list by role
-  let userWhere: any = { isActive: true };
-  if (user.role === 'HOD' || user.role === 'MANAGER') {
-    if (user.departmentId) {
-      userWhere = { isActive: true, departmentId: user.departmentId };
-    } else {
-      userWhere = { isActive: true, id: user.id };
-    }
-  } else if (user.role === 'STAFF') {
+  // Scope user list by role. Org admins (SUPER_ADMIN / ED) see all active users;
+  // HOD/MANAGER see their department; everyone else is restricted to themselves.
+  // Default is restrictive so an unrecognised role never leaks the full list.
+  let userWhere: any;
+  if (isOrgAdmin(user)) {
+    userWhere = { isActive: true };
+  } else if (user.role === 'HOD' || user.role === 'MANAGER') {
+    userWhere = user.departmentId
+      ? { isActive: true, departmentId: user.departmentId }
+      : { isActive: true, id: user.id };
+  } else {
     userWhere = { isActive: true, id: user.id };
   }
-  // ED sees all active users
 
   const users = await prisma.user.findMany({
     where: userWhere,

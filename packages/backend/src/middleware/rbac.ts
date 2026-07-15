@@ -2,6 +2,16 @@ import { prisma } from '../prisma';
 import { AuthUser } from './auth';
 
 /**
+ * Organisation-wide admin: SUPER_ADMIN and ED sit above the workstream/department
+ * scoping model and get full visibility and edit rights everywhere. Use this
+ * single helper for that check so the two roles never drift apart again (an
+ * ED-only check once locked SUPER_ADMIN out of the audit log).
+ */
+export function isOrgAdmin(user: { role: string }): boolean {
+  return user.role === 'SUPER_ADMIN' || user.role === 'ED';
+}
+
+/**
  * Get user's workstream memberships (cached per-request via caller).
  */
 export async function getUserWorkstreamMemberships(userId: string) {
@@ -31,6 +41,10 @@ export async function getWorkstreamRole(userId: string, workstreamId: string): P
  * - Tasks with no workstream if they are creator or assignee
  */
 export async function getVisibleTaskFilter(user: AuthUser): Promise<any> {
+  // Org admins (SUPER_ADMIN / ED) see every task — an empty filter matches all
+  // and composes cleanly with the caller's `{ AND: [rbacFilter, where] }`.
+  if (isOrgAdmin(user)) return {};
+
   const memberships = await getUserWorkstreamMemberships(user.id);
   const memberWorkstreamIds = memberships.map(m => m.workstreamId);
 
@@ -57,6 +71,9 @@ export async function canEditTask(
   user: AuthUser,
   task: { assigneeId: string | null; createdById: string; workstreamId: string | null },
 ): Promise<boolean> {
+  // Org admins can edit any task (matches their delete/manage authority)
+  if (isOrgAdmin(user)) return true;
+
   // Creator or assignee can always edit
   if (task.createdById === user.id || task.assigneeId === user.id) return true;
 
@@ -79,6 +96,9 @@ export async function canEditAllTaskFields(
   user: AuthUser,
   task: { assigneeId: string | null; createdById: string; workstreamId: string | null },
 ): Promise<boolean> {
+  // Org admins get full (non-status-only) edit on every task
+  if (isOrgAdmin(user)) return true;
+
   // Creator or assignee always get full edit
   if (task.createdById === user.id || task.assigneeId === user.id) return true;
 
@@ -92,5 +112,5 @@ export async function canEditAllTaskFields(
 }
 
 export function canManageUsers(user: AuthUser): boolean {
-  return user.role === 'SUPER_ADMIN' || user.role === 'ED' || user.role === 'HOD';
+  return isOrgAdmin(user) || user.role === 'HOD';
 }

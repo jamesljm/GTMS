@@ -744,7 +744,7 @@ export default function HelpPage() {
                 </div>
                 <Separator className="my-3" />
                 <p className="text-xs text-muted-foreground">
-                  Note: Even ED and SUPER_ADMIN must be workstream members to see workstream tasks. However, they always see tasks assigned to or created by them.
+                  Note: ED and SUPER_ADMIN have organisation-wide access — they can see and edit every task regardless of workstream membership. All other roles are limited to the workstreams they belong to (plus tasks assigned to or created by them).
                 </p>
               </div>
             </CardContent>
