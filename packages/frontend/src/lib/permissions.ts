@@ -13,7 +13,8 @@ export function canManageDepartments(user: User): boolean {
 }
 
 export function canManageWorkstreams(user: User): boolean {
-  return user.role === 'SUPER_ADMIN' || user.role === 'ED';
+  // All roles except STAFF can create/edit/delete workstreams.
+  return ['SUPER_ADMIN', 'ED', 'HOD', 'MANAGER'].includes(user.role);
 }
 
 /** Global role check: can manage workstream members (add/remove/change roles) */
