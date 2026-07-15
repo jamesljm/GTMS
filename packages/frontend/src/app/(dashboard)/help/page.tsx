@@ -665,7 +665,7 @@ export default function HelpPage() {
                   <Badge className="shrink-0 bg-blue-100 text-blue-700 hover:bg-blue-100">MANAGER</Badge>
                   <div>
                     <p className="text-sm font-medium">Manager</p>
-                    <p className="text-xs text-muted-foreground">Can manage workstream members. Cannot manage users or system settings.</p>
+                    <p className="text-xs text-muted-foreground">Can create and manage workstreams and workstream members. Cannot manage users or system settings.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">

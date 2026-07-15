@@ -48,8 +48,8 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   res.json(workstream);
 }));
 
-// POST / - create workstream (ED only)
-router.post('/', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
+// POST / - create workstream (SUPER_ADMIN, ED, HOD, MANAGER — not STAFF)
+router.post('/', authorize('SUPER_ADMIN', 'ED', 'HOD', 'MANAGER'), asyncHandler(async (req: Request, res: Response) => {
   const { code, name, description, color, sortOrder, departmentId, addDepartmentMembers } = req.body;
   if (!code || !name) throw new AppError(400, 'code and name are required');
 
@@ -86,8 +86,8 @@ router.post('/', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Reques
   res.status(201).json({ ...workstream, _membersAdded });
 }));
 
-// PATCH /:id - update workstream (ED only)
-router.patch('/:id', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
+// PATCH /:id - update workstream (SUPER_ADMIN, ED, HOD, MANAGER — not STAFF)
+router.patch('/:id', authorize('SUPER_ADMIN', 'ED', 'HOD', 'MANAGER'), asyncHandler(async (req: Request, res: Response) => {
   const { code, name, description, color, sortOrder, departmentId, addDepartmentMembers } = req.body;
   const workstream = await prisma.workstream.update({
     where: { id: req.params.id },
@@ -122,8 +122,8 @@ router.patch('/:id', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Re
   res.json({ ...workstream, _membersAdded });
 }));
 
-// DELETE /:id - delete workstream (ED only, only if no tasks)
-router.delete('/:id', authorize('SUPER_ADMIN', 'ED'), asyncHandler(async (req: Request, res: Response) => {
+// DELETE /:id - delete workstream (SUPER_ADMIN, ED, HOD, MANAGER — not STAFF; only if no tasks)
+router.delete('/:id', authorize('SUPER_ADMIN', 'ED', 'HOD', 'MANAGER'), asyncHandler(async (req: Request, res: Response) => {
   const count = await prisma.task.count({ where: { workstreamId: req.params.id } });
   if (count > 0) throw new AppError(400, `Cannot delete workstream with ${count} tasks. Reassign tasks first.`);
 
