@@ -3,7 +3,7 @@ import { prisma } from '../prisma';
 import { validate } from '../middleware/validate';
 import { createTaskSchema, updateTaskSchema, taskFilterSchema, requestChangesSchema, reproposeSchema, rejectProposalSchema } from 'shared';
 import { AppError } from '../middleware/error';
-import { getVisibleTaskFilter, canEditTask, canEditAllTaskFields, getUserWorkstreamMemberships } from '../middleware/rbac';
+import { getVisibleTaskFilter, canEditTask, canEditAllTaskFields, getUserWorkstreamMemberships, getWorkstreamRole } from '../middleware/rbac';
 import { createNotification } from './notifications';
 import { createAuditLog } from './audit';
 import { calculateNextRecurrenceDate } from '../services/recurrence';
@@ -808,8 +808,13 @@ router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
   const existing = await prisma.task.findUnique({ where: { id: req.params.id } });
   if (!existing) throw new AppError(404, 'Task not found');
 
-  if (req.user!.role !== 'SUPER_ADMIN' && req.user!.role !== 'ED' && existing.createdById !== req.user!.id) {
-    throw new AppError(403, 'Only ED, SUPER_ADMIN, or the task creator can delete tasks');
+  // Only the task creator or a HOD/Manager of the task's workstream can delete it
+  const isCreator = existing.createdById === req.user!.id;
+  const wsRole = !isCreator && existing.workstreamId
+    ? await getWorkstreamRole(req.user!.id, existing.workstreamId)
+    : null;
+  if (!isCreator && wsRole !== 'HOD' && wsRole !== 'MANAGER') {
+    throw new AppError(403, 'Only the task creator or a workstream HOD/Manager can delete this task');
   }
 
   await prisma.task.delete({ where: { id: req.params.id } });

@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
-import { getVisibleTaskFilter, isOrgAdmin } from '../middleware/rbac';
+import { getVisibleTaskFilter, isOrgAdmin, getUserWorkstreamMemberships } from '../middleware/rbac';
 
 const router = Router();
 
@@ -132,8 +132,11 @@ router.get('/critical', asyncHandler(async (req: Request, res: Response) => {
 // GET /workstream-summary - task counts by workstream
 router.get('/workstream-summary', asyncHandler(async (req: Request, res: Response) => {
   const rbacFilter = await getVisibleTaskFilter(req.user!);
+  const memberships = await getUserWorkstreamMemberships(req.user!.id);
+  const memberWorkstreamIds = memberships.map(m => m.workstreamId);
 
   const workstreams = await prisma.workstream.findMany({
+    where: { id: { in: memberWorkstreamIds } },
     orderBy: { sortOrder: 'asc' },
     include: {
       department: { select: { id: true, name: true, code: true } },

@@ -41,10 +41,6 @@ export async function getWorkstreamRole(userId: string, workstreamId: string): P
  * - Tasks with no workstream if they are creator or assignee
  */
 export async function getVisibleTaskFilter(user: AuthUser): Promise<any> {
-  // Org admins (SUPER_ADMIN / ED) see every task — an empty filter matches all
-  // and composes cleanly with the caller's `{ AND: [rbacFilter, where] }`.
-  if (isOrgAdmin(user)) return {};
-
   const memberships = await getUserWorkstreamMemberships(user.id);
   const memberWorkstreamIds = memberships.map(m => m.workstreamId);
 
@@ -71,9 +67,6 @@ export async function canEditTask(
   user: AuthUser,
   task: { assigneeId: string | null; createdById: string; workstreamId: string | null },
 ): Promise<boolean> {
-  // Org admins can edit any task (matches their delete/manage authority)
-  if (isOrgAdmin(user)) return true;
-
   // Creator or assignee can always edit
   if (task.createdById === user.id || task.assigneeId === user.id) return true;
 
@@ -96,9 +89,6 @@ export async function canEditAllTaskFields(
   user: AuthUser,
   task: { assigneeId: string | null; createdById: string; workstreamId: string | null },
 ): Promise<boolean> {
-  // Org admins get full (non-status-only) edit on every task
-  if (isOrgAdmin(user)) return true;
-
   // Creator or assignee always get full edit
   if (task.createdById === user.id || task.assigneeId === user.id) return true;
 

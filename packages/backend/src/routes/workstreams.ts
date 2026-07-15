@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
 import { authorize } from '../middleware/auth';
-import { getVisibleTaskFilter } from '../middleware/rbac';
+import { getVisibleTaskFilter, getUserWorkstreamMemberships, getWorkstreamRole } from '../middleware/rbac';
 import { AppError } from '../middleware/error';
 
 const router = Router();
@@ -12,9 +12,13 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<void>) {
   };
 }
 
-// GET / - list all workstreams with task counts
+// GET / - list workstreams the user belongs to (workstream-scoped for every role)
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
+  const memberships = await getUserWorkstreamMemberships(req.user!.id);
+  const workstreamIds = memberships.map(m => m.workstreamId);
+
   const workstreams = await prisma.workstream.findMany({
+    where: { id: { in: workstreamIds } },
     orderBy: { sortOrder: 'asc' },
     include: {
       department: { select: { id: true, name: true, code: true, color: true } },
@@ -25,8 +29,11 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   res.json(workstreams);
 }));
 
-// GET /:id - workstream detail with tasks
+// GET /:id - workstream detail with tasks (members only)
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const wsRole = await getWorkstreamRole(req.user!.id, req.params.id);
+  if (!wsRole) throw new AppError(404, 'Workstream not found');
+
   const rbacFilter = await getVisibleTaskFilter(req.user!);
 
   const workstream = await prisma.workstream.findUnique({
@@ -66,6 +73,13 @@ router.post('/', authorize('SUPER_ADMIN', 'ED', 'HOD', 'MANAGER'), asyncHandler(
     include: {
       department: { select: { id: true, name: true, code: true, color: true } },
     },
+  });
+
+  // Creator becomes a member (HOD) so they can see and manage their own workstream
+  await prisma.workstreamMember.upsert({
+    where: { userId_workstreamId: { userId: req.user!.id, workstreamId: workstream.id } },
+    update: { role: 'HOD' },
+    create: { userId: req.user!.id, workstreamId: workstream.id, role: 'HOD' },
   });
 
   let _membersAdded = 0;
