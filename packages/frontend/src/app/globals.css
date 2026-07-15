@@ -27,25 +27,26 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    /* Notion-style warm neutral dark — soft grays, not blue-black */
+    --background: 30 3% 10%;         /* #1a1918 page */
+    --foreground: 40 8% 88%;         /* soft off-white text */
+    --card: 30 3% 12%;               /* #201f1e surfaces */
+    --card-foreground: 40 8% 88%;
+    --popover: 30 3% 14%;            /* #252423 menus/dropdowns */
+    --popover-foreground: 40 8% 88%;
+    --primary: 211 74% 56%;          /* Notion blue accent */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 3% 16%;          /* #2a2827 */
+    --secondary-foreground: 40 8% 88%;
+    --muted: 30 3% 16%;
+    --muted-foreground: 40 4% 56%;   /* secondary gray text */
+    --accent: 34 4% 18%;             /* #302e2c hover */
+    --accent-foreground: 40 8% 92%;
+    --destructive: 0 65% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 33 4% 20%;             /* subtle #34312e */
+    --input: 33 4% 20%;
+    --ring: 211 74% 56%;
   }
 }
 
@@ -65,5 +66,57 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/* ---------- Login page atmosphere ---------- */
+@keyframes login-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes login-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes login-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes login-sheen {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.login-rise {
+  opacity: 0;
+  animation: login-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.login-fade {
+  opacity: 0;
+  animation: login-fade 1.1s ease forwards;
+}
+
+.login-spin {
+  animation: login-spin 0.7s linear infinite;
+}
+
+.login-wordmark {
+  background-size: 200% auto;
+  animation: login-sheen 6s linear infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-rise,
+  .login-fade,
+  .login-spin,
+  .login-wordmark {
+    animation: none !important;
+  }
+  .login-rise,
+  .login-fade {
+    opacity: 1;
   }
 }

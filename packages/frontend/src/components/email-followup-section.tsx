@@ -333,8 +333,8 @@ export function EmailFollowUpSection({ taskId, canEdit }: EmailFollowUpSectionPr
                         className={cn(
                           "text-[10px] py-0 h-4",
                           fu.isActive
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : "bg-gray-50 text-gray-500 border-gray-200"
+                            ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/30"
+                            : "bg-gray-50 text-gray-500 border-gray-200 dark:bg-gray-500/10 dark:text-gray-400 dark:border-gray-500/30"
                         )}
                       >
                         {fu.isActive ? "Active" : "Paused"}

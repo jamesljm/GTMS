@@ -80,7 +80,7 @@ export function MultiSelectFilter({ label, options, selected, onChange, classNam
                 type="checkbox"
                 checked={selected.includes(opt.value)}
                 onChange={() => toggle(opt.value)}
-                className="rounded border-gray-300 text-primary focus:ring-primary h-3.5 w-3.5"
+                className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
               />
               {opt.color && (
                 <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />

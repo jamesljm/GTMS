@@ -17,11 +17,11 @@ export function ChatActionCard({ action }: { action: any }) {
   const taskTitle = action.result?.task?.title || action.result?.subtask?.title;
 
   const content = (
-    <Card className="bg-green-50 border-green-200">
+    <Card className="bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30">
       <CardContent className="p-3 flex items-start gap-2">
-        <Icon className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+        <Icon className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
         <div className="text-sm flex-1 min-w-0">
-          <span className="font-medium text-green-800">
+          <span className="font-medium text-green-800 dark:text-green-400">
             {action.tool === "create_task" && "Task created"}
             {action.tool === "update_task" && "Task updated"}
             {action.tool === "query_tasks" && `Found ${action.result?.count || 0} tasks`}
@@ -30,8 +30,8 @@ export function ChatActionCard({ action }: { action: any }) {
             {action.tool === "bulk_update" && `Updated ${action.result?.count || 0} tasks`}
           </span>
           {taskTitle && (
-            <p className="text-green-700 mt-0.5">
-              {taskId && <span className="font-mono text-[10px] text-green-600 mr-1">{taskId.slice(0, 6)}</span>}
+            <p className="text-green-700 dark:text-green-400 mt-0.5">
+              {taskId && <span className="font-mono text-[10px] text-green-600 dark:text-green-400 mr-1">{taskId.slice(0, 6)}</span>}
               {taskTitle}
             </p>
           )}
@@ -42,16 +42,16 @@ export function ChatActionCard({ action }: { action: any }) {
                 <Link
                   key={t.id}
                   href={`/tasks?task=${t.id}`}
-                  className="flex items-center gap-1 text-xs text-green-700 hover:text-green-900 hover:underline"
+                  className="flex items-center gap-1 text-xs text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <span className="font-mono text-[10px] text-green-600">{t.id.slice(0, 6)}</span>
+                  <span className="font-mono text-[10px] text-green-600 dark:text-green-400">{t.id.slice(0, 6)}</span>
                   <span className="truncate">{t.title}</span>
                   <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-50" />
                 </Link>
               ))}
               {action.result.tasks.length > 5 && (
-                <span className="text-[10px] text-green-600">+{action.result.tasks.length - 5} more</span>
+                <span className="text-[10px] text-green-600 dark:text-green-400">+{action.result.tasks.length - 5} more</span>
               )}
             </div>
           )}

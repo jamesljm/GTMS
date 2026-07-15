@@ -38,9 +38,9 @@ function getInitials(name: string) {
 }
 
 const acceptanceBadgeStyles: Record<string, string> = {
-  Pending: "bg-gray-100 text-gray-600",
-  "Changes Requested": "bg-amber-100 text-amber-700",
-  Reproposed: "bg-violet-100 text-violet-700",
+  Pending: "bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400",
+  "Changes Requested": "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  Reproposed: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
 };
 
 interface TaskCardProps {
@@ -64,10 +64,11 @@ interface TaskCardProps {
   compact?: boolean;
   ultraCompact?: boolean;
   isSelected?: boolean;
+  hideId?: boolean;
   onClick?: (taskId: string) => void;
 }
 
-export function TaskCard({ task, compact = false, ultraCompact = false, isSelected = false, onClick }: TaskCardProps) {
+export function TaskCard({ task, compact = false, ultraCompact = false, isSelected = false, hideId = false, onClick }: TaskCardProps) {
   const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && task.status !== "Done" && task.status !== "Cancelled";
   const isDueToday = task.dueDate && isToday(new Date(task.dueDate));
   const isDraft = task.acceptanceStatus && task.acceptanceStatus !== "Accepted";
@@ -83,17 +84,17 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
         className={cn(
           "flex items-center gap-1.5 px-2 py-1.5 rounded-md border transition-colors cursor-pointer",
           isDraft && "border-dashed opacity-70",
-          isOverdue && "border-red-200 bg-red-50/30",
+          isOverdue && "border-red-200 bg-red-50/30 dark:border-red-500/30 dark:bg-red-500/10",
           isSelected ? "ring-1 ring-primary bg-primary/5" : "hover:bg-accent/30",
         )}
       >
         <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", isDraft ? "bg-gray-400" : (priorityDotColors[task.priority] || "bg-gray-300"))} />
-        <span className="text-[10px] text-muted-foreground font-mono shrink-0">{task.id.slice(0, 6)}</span>
+        {!hideId && <span className="text-[10px] text-muted-foreground font-mono shrink-0">{task.id.slice(0, 6)}</span>}
         <span className={cn("text-xs font-medium truncate flex-1", task.status === "Done" && "line-through text-muted-foreground")}>
           {task.title}
         </span>
         {task.dueDate && (
-          <span className={cn("text-[10px] whitespace-nowrap shrink-0", isOverdue ? "text-red-600 font-medium" : "text-muted-foreground")}>
+          <span className={cn("text-[10px] whitespace-nowrap shrink-0", isOverdue ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
             {format(new Date(task.dueDate), "dd/MM")}
           </span>
         )}
@@ -132,8 +133,8 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
         "block rounded-lg border border-l-4 p-3 transition-colors cursor-pointer",
         priorityColors[task.priority] || "border-l-gray-300",
         isDraft && "border-dashed opacity-70",
-        isOverdue && "border-red-200 bg-red-50/30",
-        isDueToday && !isOverdue && "border-yellow-200 bg-yellow-50/30",
+        isOverdue && "border-red-200 bg-red-50/30 dark:border-red-500/30 dark:bg-red-500/10",
+        isDueToday && !isOverdue && "border-yellow-200 bg-yellow-50/30 dark:border-yellow-500/30 dark:bg-yellow-500/10",
         isSelected && "ring-2 ring-primary bg-primary/5",
         !isSelected && "hover:bg-accent/50",
       )}
@@ -150,7 +151,7 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
             </button>
           )}
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground font-mono shrink-0">{task.id.slice(0, 6)}</span>
+            {!hideId && <span className="text-[10px] text-muted-foreground font-mono shrink-0">{task.id.slice(0, 6)}</span>}
             <p className={cn("text-sm font-medium", task.status === "Done" && "line-through text-muted-foreground", compact ? "truncate" : "")}>
               {task.title}
             </p>
@@ -165,7 +166,7 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
               {isDraft && task.acceptanceStatus && (
                 <span className={cn(
                   "text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-0.5",
-                  acceptanceBadgeStyles[task.acceptanceStatus] || "bg-gray-100 text-gray-600",
+                  acceptanceBadgeStyles[task.acceptanceStatus] || "bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400",
                   (task.acceptanceStatus === "Changes Requested" || task.acceptanceStatus === "Reproposed") && "hover:underline cursor-pointer",
                 )}>
                   {task.acceptanceStatus}
@@ -187,7 +188,7 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
             <span className="text-muted-foreground text-xs">→</span>
           )}
           {dueDateLabel && (
-            <span className={cn("text-xs whitespace-nowrap", isOverdue ? "text-red-600 font-medium" : "text-muted-foreground")}>
+            <span className={cn("text-xs whitespace-nowrap", isOverdue ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
               {compact ? (task.dueDate ? format(new Date(task.dueDate), "dd MMM") : "") : dueDateLabel}
             </span>
           )}
@@ -242,7 +243,7 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
               onClick={(e) => { e.stopPropagation(); onClick?.(sub.id); }}
             >
               {sub.status === "Done"
-                ? <CheckCircle2 className="h-3 w-3 text-green-600 shrink-0" />
+                ? <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
                 : <Circle className="h-3 w-3 text-muted-foreground shrink-0" />
               }
               <span className={cn("text-xs truncate flex-1", sub.status === "Done" && "line-through text-muted-foreground")}>
@@ -269,7 +270,7 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
       )}
 
       {task.waitingOnWhom && !compact && (
-        <p className="text-xs text-yellow-700 mt-1.5">Waiting on: {task.waitingOnWhom}</p>
+        <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1.5">Waiting on: {task.waitingOnWhom}</p>
       )}
     </div>
   );

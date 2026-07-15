@@ -16,9 +16,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const roleBadgeStyles: Record<string, string> = {
-  HOD: "bg-purple-100 text-purple-700",
-  MANAGER: "bg-blue-100 text-blue-700",
-  STAFF: "bg-gray-100 text-gray-600",
+  HOD: "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300",
+  MANAGER: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+  STAFF: "bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400",
 };
 
 export default function WorkstreamMembersPage() {

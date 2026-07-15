@@ -11,14 +11,14 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const actionLabels: Record<string, { label: string; color: string }> = {
-  "task.created": { label: "Created", color: "bg-green-100 text-green-700" },
-  "task.updated": { label: "Updated", color: "bg-blue-100 text-blue-700" },
-  "task.deleted": { label: "Deleted", color: "bg-red-100 text-red-700" },
-  "task.completed": { label: "Completed", color: "bg-emerald-100 text-emerald-700" },
-  "task.assigned": { label: "Assigned", color: "bg-purple-100 text-purple-700" },
-  "task.accepted": { label: "Accepted", color: "bg-green-100 text-green-700" },
-  "task.changes_requested": { label: "Changes Requested", color: "bg-amber-100 text-amber-700" },
-  "task.reproposed": { label: "Reproposed", color: "bg-violet-100 text-violet-700" },
+  "task.created": { label: "Created", color: "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300" },
+  "task.updated": { label: "Updated", color: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300" },
+  "task.deleted": { label: "Deleted", color: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300" },
+  "task.completed": { label: "Completed", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300" },
+  "task.assigned": { label: "Assigned", color: "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300" },
+  "task.accepted": { label: "Accepted", color: "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300" },
+  "task.changes_requested": { label: "Changes Requested", color: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" },
+  "task.reproposed": { label: "Reproposed", color: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300" },
 };
 
 function parseDetails(details: string | null): Record<string, any> | null {
@@ -170,7 +170,7 @@ export default function ActivityPage() {
               </thead>
               <tbody>
                 {logs.map((log: any) => {
-                  const actionInfo = actionLabels[log.action] || { label: log.action, color: "bg-gray-100 text-gray-700" };
+                  const actionInfo = actionLabels[log.action] || { label: log.action, color: "bg-gray-100 text-gray-700 dark:bg-gray-500/15 dark:text-gray-300" };
                   return (
                     <tr key={log.id} className="border-t hover:bg-accent/30 transition-colors">
                       <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">

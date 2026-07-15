@@ -86,6 +86,12 @@ function TasksContent() {
   const [filters, setFilters] = useState<Record<string, any>>(initialFilters);
   const initialSearch = searchParams.get("search") || "";
   const [search, setSearch] = useState(initialSearch);
+
+  // Keep search in sync when the URL ?search= changes (e.g. from the global search bar
+  // while already on this page — useState only reads the initial value once).
+  useEffect(() => {
+    setSearch(searchParams.get("search") || "");
+  }, [searchParams]);
   const [kanbanGroupBy, setKanbanGroupBy] = useState<"status" | "workstream">("status");
   const [listGroupBy, setListGroupBy] = useState<GroupBy>("none");
 
@@ -210,6 +216,7 @@ function TasksContent() {
           groupBy={kanbanGroupBy}
           onGroupByChange={setKanbanGroupBy}
           workstreams={workstreams || []}
+          filters={filters}
         />
       )}
 

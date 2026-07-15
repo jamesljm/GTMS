@@ -185,7 +185,7 @@ export function GanttView({ tasks, isLoading, selectedTaskId, onSelectTask, work
                     key={i}
                     className={cn(
                       "border-r text-[10px] text-muted-foreground flex items-center justify-center shrink-0",
-                      col.isToday && "bg-red-50 dark:bg-red-950/30 font-medium text-red-600",
+                      col.isToday && "bg-red-50 dark:bg-red-950/30 font-medium text-red-600 dark:text-red-400",
                     )}
                     style={{ width: config.columnWidth }}
                   >

@@ -201,12 +201,12 @@ export function M365ImportDialog({ open, onOpenChange }: { open: boolean; onOpen
 
                           {/* Status badge */}
                           {isLinked && (
-                            <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 shrink-0">
+                            <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-500/15 dark:text-green-300 dark:border-green-500/30 dark:hover:bg-green-500/15 shrink-0">
                               <Check className="h-3 w-3 mr-1" /> Imported
                             </Badge>
                           )}
                           {isUnlinked && (
-                            <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100 shrink-0">
+                            <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-500/15 dark:text-yellow-300 dark:border-yellow-500/30 dark:hover:bg-yellow-500/15 shrink-0">
                               <Link2 className="h-3 w-3 mr-1" /> Link M365
                             </Badge>
                           )}
@@ -253,21 +253,21 @@ export function M365ImportDialog({ open, onOpenChange }: { open: boolean; onOpen
           <>
             {/* Summary */}
             <div className="grid grid-cols-4 gap-3 text-center">
-              <div className="rounded-lg bg-green-50 p-3">
-                <p className="text-2xl font-bold text-green-700">{importResults.summary.created}</p>
-                <p className="text-xs text-green-600">Created</p>
+              <div className="rounded-lg bg-green-50 dark:bg-green-500/10 p-3">
+                <p className="text-2xl font-bold text-green-700 dark:text-green-400">{importResults.summary.created}</p>
+                <p className="text-xs text-green-600 dark:text-green-400">Created</p>
               </div>
-              <div className="rounded-lg bg-blue-50 p-3">
-                <p className="text-2xl font-bold text-blue-700">{importResults.summary.linked}</p>
-                <p className="text-xs text-blue-600">Linked</p>
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-500/10 p-3">
+                <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{importResults.summary.linked}</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400">Linked</p>
               </div>
-              <div className="rounded-lg bg-gray-50 p-3">
-                <p className="text-2xl font-bold text-gray-700">{importResults.summary.alreadyLinked}</p>
-                <p className="text-xs text-gray-600">Already Linked</p>
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-500/10 p-3">
+                <p className="text-2xl font-bold text-gray-700 dark:text-gray-400">{importResults.summary.alreadyLinked}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Already Linked</p>
               </div>
-              <div className="rounded-lg bg-red-50 p-3">
-                <p className="text-2xl font-bold text-red-700">{importResults.summary.errors}</p>
-                <p className="text-xs text-red-600">Errors</p>
+              <div className="rounded-lg bg-red-50 dark:bg-red-500/10 p-3">
+                <p className="text-2xl font-bold text-red-700 dark:text-red-400">{importResults.summary.errors}</p>
+                <p className="text-xs text-red-600 dark:text-red-400">Errors</p>
               </div>
             </div>
 

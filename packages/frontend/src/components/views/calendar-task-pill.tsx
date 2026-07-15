@@ -23,7 +23,7 @@ export function CalendarTaskPill({ task, isSelected, onClick }: CalendarTaskPill
       onClick={(e) => { e.stopPropagation(); onClick(task.id); }}
       className={cn(
         "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs cursor-pointer hover:bg-accent/50 truncate transition-colors",
-        isDraft && "border border-dashed border-amber-300 bg-amber-50/30 opacity-70",
+        isDraft && "border border-dashed border-amber-300 dark:border-amber-500/30 bg-amber-50/30 dark:bg-amber-500/10 opacity-70",
         isSelected && "bg-primary/10 ring-1 ring-primary",
         task.status === "Done" && "opacity-50 line-through",
       )}

@@ -21,7 +21,7 @@ export default function ChatPage() {
   return (
     <div className="flex h-[calc(100vh-8rem)] lg:h-[calc(100vh-4rem)] -m-4 md:-m-6">
       {/* Session sidebar - desktop */}
-      <div className="hidden lg:flex w-64 border-r flex-col bg-white">
+      <div className="hidden lg:flex w-64 border-r flex-col bg-background">
         <div className="p-3 border-b">
           <Button className="w-full" size="sm" onClick={handleNewChat}>
             <Plus className="h-4 w-4 mr-1" /> New Chat

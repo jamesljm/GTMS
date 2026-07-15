@@ -204,27 +204,27 @@ export default function HelpPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/30">
-                <Badge variant="outline" className="shrink-0 bg-gray-100 text-gray-600">Not Started</Badge>
+                <Badge variant="outline" className="shrink-0 bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400">Not Started</Badge>
                 <p className="text-sm text-muted-foreground">Default state for new tasks. Work has not begun.</p>
               </div>
               <div className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/30">
-                <Badge variant="outline" className="shrink-0 bg-blue-100 text-blue-700">In Progress</Badge>
+                <Badge variant="outline" className="shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">In Progress</Badge>
                 <p className="text-sm text-muted-foreground">The assignee is actively working on this task.</p>
               </div>
               <div className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/30">
-                <Badge variant="outline" className="shrink-0 bg-amber-100 text-amber-700">Waiting On</Badge>
+                <Badge variant="outline" className="shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">Waiting On</Badge>
                 <p className="text-sm text-muted-foreground">Work is paused pending input from someone else. A dialog will prompt you for remarks and optional CC recipients. HOD and task creator are notified automatically.</p>
               </div>
               <div className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/30">
-                <Badge variant="outline" className="shrink-0 bg-red-100 text-red-700">Blocked</Badge>
+                <Badge variant="outline" className="shrink-0 bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">Blocked</Badge>
                 <p className="text-sm text-muted-foreground">The task cannot proceed due to an obstacle. A dialog will prompt you to describe the blocker and CC additional people. HOD and task creator are notified automatically.</p>
               </div>
               <div className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/30">
-                <Badge variant="outline" className="shrink-0 bg-green-100 text-green-700">Done</Badge>
+                <Badge variant="outline" className="shrink-0 bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">Done</Badge>
                 <p className="text-sm text-muted-foreground">Task is completed. The task creator receives a notification.</p>
               </div>
               <div className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/30">
-                <Badge variant="outline" className="shrink-0 bg-gray-100 text-gray-500">Cancelled</Badge>
+                <Badge variant="outline" className="shrink-0 bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400">Cancelled</Badge>
                 <p className="text-sm text-muted-foreground">Task has been abandoned and is no longer relevant.</p>
               </div>
             </CardContent>
@@ -648,28 +648,28 @@ export default function HelpPage() {
             <CardContent className="space-y-3">
               <div className="grid gap-3">
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                  <Badge className="shrink-0 bg-red-100 text-red-700 hover:bg-red-100">ED</Badge>
+                  <Badge className="shrink-0 bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-500/15 dark:text-red-300 dark:hover:bg-red-500/15">ED</Badge>
                   <div>
                     <p className="text-sm font-medium">Executive Director</p>
                     <p className="text-xs text-muted-foreground">Full system access. Can manage users, departments, workstreams, and all settings.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                  <Badge className="shrink-0 bg-purple-100 text-purple-700 hover:bg-purple-100">HOD</Badge>
+                  <Badge className="shrink-0 bg-purple-100 text-purple-700 hover:bg-purple-100 dark:bg-purple-500/15 dark:text-purple-300 dark:hover:bg-purple-500/15">HOD</Badge>
                   <div>
                     <p className="text-sm font-medium">Head of Department</p>
                     <p className="text-xs text-muted-foreground">Can manage users and workstream members. Can create and manage workstreams.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                  <Badge className="shrink-0 bg-blue-100 text-blue-700 hover:bg-blue-100">MANAGER</Badge>
+                  <Badge className="shrink-0 bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:hover:bg-blue-500/15">MANAGER</Badge>
                   <div>
                     <p className="text-sm font-medium">Manager</p>
                     <p className="text-xs text-muted-foreground">Can manage workstream members. Cannot manage users or system settings.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                  <Badge className="shrink-0 bg-gray-100 text-gray-600 hover:bg-gray-100">STAFF</Badge>
+                  <Badge className="shrink-0 bg-gray-100 text-gray-600 hover:bg-gray-100 dark:bg-gray-500/15 dark:text-gray-400 dark:hover:bg-gray-500/15">STAFF</Badge>
                   <div>
                     <p className="text-sm font-medium">Staff</p>
                     <p className="text-xs text-muted-foreground">Standard access. Can view and work on assigned tasks.</p>
@@ -692,21 +692,21 @@ export default function HelpPage() {
             <CardContent className="space-y-3">
               <div className="grid gap-3">
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                  <Badge className="shrink-0 bg-purple-100 text-purple-700 hover:bg-purple-100">HOD</Badge>
+                  <Badge className="shrink-0 bg-purple-100 text-purple-700 hover:bg-purple-100 dark:bg-purple-500/15 dark:text-purple-300 dark:hover:bg-purple-500/15">HOD</Badge>
                   <div>
                     <p className="text-sm font-medium">Workstream HOD</p>
                     <p className="text-xs text-muted-foreground">Full edit access to all tasks in this workstream. Can modify title, description, priority, assignee, due date, and status.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                  <Badge className="shrink-0 bg-blue-100 text-blue-700 hover:bg-blue-100">MANAGER</Badge>
+                  <Badge className="shrink-0 bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:hover:bg-blue-500/15">MANAGER</Badge>
                   <div>
                     <p className="text-sm font-medium">Workstream Manager</p>
                     <p className="text-xs text-muted-foreground">Full edit access to all tasks in this workstream, same as HOD.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                  <Badge className="shrink-0 bg-gray-100 text-gray-600 hover:bg-gray-100">STAFF</Badge>
+                  <Badge className="shrink-0 bg-gray-100 text-gray-600 hover:bg-gray-100 dark:bg-gray-500/15 dark:text-gray-400 dark:hover:bg-gray-500/15">STAFF</Badge>
                   <div>
                     <p className="text-sm font-medium">Workstream Staff</p>
                     <p className="text-xs text-muted-foreground">Can view all tasks in this workstream. Can only update task status (not other fields) unless you are the creator or assignee.</p>

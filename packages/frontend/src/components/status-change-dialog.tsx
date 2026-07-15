@@ -131,7 +131,9 @@ export function StatusChangeDialog({
           <DialogTitle
             className={cn(
               "flex items-center gap-2",
-              isBlocked ? "text-red-600" : "text-amber-600"
+              isBlocked
+                ? "text-red-600 dark:text-red-400"
+                : "text-amber-600 dark:text-amber-400"
             )}
           >
             {isBlocked ? (

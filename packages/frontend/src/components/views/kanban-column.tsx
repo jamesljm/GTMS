@@ -8,17 +8,19 @@ interface KanbanColumnProps {
   title: string;
   count: number;
   color?: string;
+  grow?: boolean;
   children: React.ReactNode;
 }
 
-export function KanbanColumn({ id, title, count, color, children }: KanbanColumnProps) {
+export function KanbanColumn({ id, title, count, color, grow, children }: KanbanColumnProps) {
   const { isOver, setNodeRef } = useDroppable({ id });
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col rounded-lg border min-w-[280px] w-[280px] shrink-0 transition-colors",
+        "flex flex-col rounded-lg border transition-colors",
+        grow ? "flex-1 min-w-[280px]" : "min-w-[280px] w-[280px] shrink-0",
         isOver && "border-primary bg-primary/5",
       )}
     >

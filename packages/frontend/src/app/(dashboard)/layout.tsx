@@ -8,7 +8,6 @@ import {
   LayoutDashboard, ListTodo, MessageSquare, Users, Layers,
   Settings, LogOut, Menu, X, Building2, ClipboardCheck, Activity, ShieldCheck, HelpCircle, BarChart3,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
 import { EmbeddedChatPanel } from "@/components/embedded-chat-panel";
 import { NotificationDropdown } from "@/components/notification-dropdown";
@@ -21,8 +20,8 @@ const navigation = [
   { name: "Dept Charts", href: "/department-dashboard", icon: BarChart3 },
   { name: "Tasks", href: "/tasks", icon: ListTodo },
   { name: "Pending", href: "/pending", icon: ClipboardCheck },
-  { name: "AI Chat", href: "/chat", icon: MessageSquare },
   { name: "Activity", href: "/activity", icon: Activity },
+  { name: "AI Chat", href: "/chat", icon: MessageSquare },
   { name: "Team", href: "/team", icon: Users },
   { name: "Departments", href: "/departments", icon: Building2 },
   { name: "Workstreams", href: "/workstreams", icon: Layers },
@@ -71,21 +70,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-30 w-64 bg-background border-r transform transition-transform lg:translate-x-0",
+        "fixed inset-y-0 left-0 z-30 w-64 bg-muted/30 border-r transform transition-transform lg:translate-x-0",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex flex-col h-full">
-          <div className="p-6 border-b hidden lg:block">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-xl font-bold text-primary">GTMS</h1>
-                <p className="text-xs text-muted-foreground mt-1">Geohan Corporation</p>
-              </div>
-              <NotificationDropdown />
+          <div className="px-5 h-[60px] border-b hidden lg:flex items-center justify-between">
+            <div>
+              <h1 className="font-display text-lg font-bold tracking-tight text-foreground leading-none">GTMS</h1>
+              <p className="text-[11px] text-muted-foreground mt-1">Geohan Corporation</p>
             </div>
+            <NotificationDropdown />
           </div>
 
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto mt-16 lg:mt-0">
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide mt-16 lg:mt-0">
             {navigation.map((item) => {
               const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
               return (
@@ -94,13 +91,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   href={item.href}
                   onClick={() => setSidebarOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                    "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      ? "bg-card font-semibold text-foreground shadow-sm ring-1 ring-border"
+                      : "font-medium text-muted-foreground hover:bg-card/60 hover:text-foreground"
                   )}
                 >
-                  <item.icon className="h-4 w-4" />
+                  <item.icon
+                    className={cn(
+                      "h-[18px] w-[18px] shrink-0 transition-colors",
+                      isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  />
                   <span>{item.name}</span>
                 </Link>
               );
@@ -108,36 +110,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </nav>
 
           {/* Quick Add */}
-          <div className="px-3 pb-2 hidden lg:block">
+          <div className="px-3 pt-2 hidden lg:block">
             <QuickAddTrigger />
           </div>
 
           {/* AI Chat Panel */}
-          <div className="px-3 pb-2 hidden lg:block">
+          <div className="px-3 pt-2 hidden lg:block">
             <EmbeddedChatPanel />
           </div>
 
           {/* User info */}
-          <div className="p-4 border-t">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium">
+          <div className="mt-2 p-3 border-t">
+            <div className="flex items-center gap-3 rounded-lg p-2">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-foreground text-sm font-semibold text-background shadow-sm ring-2 ring-background">
                 {user.name.charAt(0)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user.name}</p>
+                <p className="text-sm font-semibold truncate">{user.name}</p>
                 {user.role === "SUPER_ADMIN" ? (
-                  <p className="text-xs text-red-600 font-semibold flex items-center gap-1 truncate">
-                    <ShieldCheck className="h-3 w-3" /> Super Admin
+                  <p className="text-xs text-red-600 dark:text-red-400 font-medium flex items-center gap-1 truncate">
+                    <ShieldCheck className="h-3 w-3 shrink-0" /> Super Admin
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground truncate">{user.role} - {user.department?.name || "No Dept"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user.role} · {user.department?.name || "No Dept"}</p>
                 )}
               </div>
+              <button
+                onClick={logout}
+                title="Sign out"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
-            <Button variant="outline" size="sm" className="w-full" onClick={logout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
           </div>
         </div>
       </aside>
@@ -152,7 +157,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main content */}
       <main className="flex-1 min-w-0 lg:ml-64 mt-16 lg:mt-0 pb-20 lg:pb-0">
-        <div className="hidden lg:block sticky top-0 z-10 bg-background border-b px-6 py-3">
+        <div className="hidden lg:flex items-center sticky top-0 z-20 bg-background border-b px-6 h-[60px]">
           <GlobalSearch />
         </div>
         <div className="p-4 md:p-6 min-w-0">{children}</div>

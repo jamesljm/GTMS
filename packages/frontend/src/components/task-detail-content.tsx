@@ -524,9 +524,9 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
                 <span className="text-xs font-medium text-muted-foreground">Acceptance:</span>
                 <Badge variant="outline" className={cn(
                   "text-[10px]",
-                  task.acceptanceStatus === "Pending" && "bg-gray-100 text-gray-600",
-                  task.acceptanceStatus === "Changes Requested" && "bg-amber-100 text-amber-700",
-                  task.acceptanceStatus === "Reproposed" && "bg-violet-100 text-violet-700",
+                  task.acceptanceStatus === "Pending" && "bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400",
+                  task.acceptanceStatus === "Changes Requested" && "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+                  task.acceptanceStatus === "Reproposed" && "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
                 )}>
                   {task.acceptanceStatus}
                 </Badge>
@@ -665,7 +665,7 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
                 {task.subtasks.map((sub: any) => (
                   <div key={sub.id} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-accent/50">
                     <button onClick={() => handleToggleSubtask(sub.id, sub.status)} className="shrink-0">
-                      {sub.status === "Done" ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
+                      {sub.status === "Done" ? <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" /> : <Circle className="h-4 w-4 text-muted-foreground" />}
                     </button>
                     <button
                       className={cn("text-sm flex-1 text-left truncate hover:underline", sub.status === "Done" && "line-through text-muted-foreground")}
@@ -788,10 +788,10 @@ export function TaskDetailContent({ taskId, onClose, inline = false, onNavigateT
                       </div>
                     )}
                     <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                      <a href={getAttachmentUrl(att.id)} download={att.filename} className="bg-white/90 rounded p-0.5 hover:bg-white" onClick={(e) => e.stopPropagation()}>
+                      <a href={getAttachmentUrl(att.id)} download={att.filename} className="bg-background/90 rounded p-0.5 hover:bg-background" onClick={(e) => e.stopPropagation()}>
                         <Download className="h-3 w-3" />
                       </a>
-                      <button className="bg-white/90 rounded p-0.5 hover:bg-white" onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(att.id); }}>
+                      <button className="bg-background/90 rounded p-0.5 hover:bg-background" onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(att.id); }}>
                         <Trash2 className="h-3 w-3 text-destructive" />
                       </button>
                     </div>

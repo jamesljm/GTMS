@@ -352,7 +352,7 @@ function DepartmentMembers({ deptId }: { deptId: string }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">
                     {m.name}
-                    {dept.headId === m.id && <span className="ml-2 text-xs text-amber-600 font-normal">(HOD)</span>}
+                    {dept.headId === m.id && <span className="ml-2 text-xs text-amber-600 dark:text-amber-400 font-normal">(HOD)</span>}
                     {m.isPrimary && (
                       <span className="ml-1.5 inline-flex items-center">
                         <Star className="h-3 w-3 text-primary fill-primary" />

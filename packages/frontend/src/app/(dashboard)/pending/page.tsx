@@ -101,9 +101,9 @@ function TaskActionCard({ task, role }: { task: any; role: "assignee" | "initiat
               )}
               <Badge variant="outline" className={cn(
                 "text-[10px]",
-                task.acceptanceStatus === "Pending" && "bg-gray-100 text-gray-600",
-                task.acceptanceStatus === "Changes Requested" && "bg-amber-100 text-amber-700",
-                task.acceptanceStatus === "Reproposed" && "bg-violet-100 text-violet-700",
+                task.acceptanceStatus === "Pending" && "bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400",
+                task.acceptanceStatus === "Changes Requested" && "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+                task.acceptanceStatus === "Reproposed" && "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
               )}>
                 {task.acceptanceStatus}
               </Badge>

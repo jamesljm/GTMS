@@ -10,9 +10,10 @@ interface KanbanCardProps {
   task: any;
   isSelected: boolean;
   onClick: (taskId: string) => void;
+  hideId?: boolean;
 }
 
-export function KanbanCard({ task, isSelected, onClick }: KanbanCardProps) {
+export function KanbanCard({ task, isSelected, onClick, hideId }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
   });
@@ -42,6 +43,7 @@ export function KanbanCard({ task, isSelected, onClick }: KanbanCardProps) {
         task={task}
         compact
         isSelected={isSelected}
+        hideId={hideId}
         onClick={onClick}
       />
     </div>

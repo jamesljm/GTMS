@@ -17,6 +17,7 @@ import { KanbanColumn } from "./kanban-column";
 import { KanbanCard } from "./kanban-card";
 import { TaskCard } from "@/components/task-card";
 import { StatusChangeDialog } from "@/components/status-change-dialog";
+import { CornerDownRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STATUS_REQUIRES_REMARKS = new Set(["Blocked", "Waiting On"]);
@@ -31,11 +32,12 @@ interface KanbanViewProps {
   groupBy: "status" | "workstream";
   onGroupByChange: (g: "status" | "workstream") => void;
   workstreams: any[];
+  filters?: Record<string, any>;
 }
 
 export function KanbanView({
   tasks, isLoading, selectedTaskId, onSelectTask,
-  groupBy, onGroupByChange, workstreams,
+  groupBy, onGroupByChange, workstreams, filters,
 }: KanbanViewProps) {
   const updateTask = useUpdateTask();
   const [activeTask, setActiveTask] = useState<any>(null);
@@ -48,9 +50,18 @@ export function KanbanView({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
+  // When a status filter is active, only show those status columns
+  const statusFilter = useMemo(
+    () => (filters?.status ? String(filters.status).split(",").filter(Boolean) : []),
+    [filters?.status]
+  );
+
   const columns = useMemo(() => {
     if (groupBy === "status") {
-      return STATUS_COLUMNS.map(status => ({
+      const visibleStatuses = statusFilter.length > 0
+        ? STATUS_COLUMNS.filter(s => statusFilter.includes(s))
+        : STATUS_COLUMNS;
+      return visibleStatuses.map(status => ({
         id: status,
         title: status,
         tasks: tasks.filter(t => t.status === status),
@@ -68,7 +79,7 @@ export function KanbanView({
       }
       return wsColumns;
     }
-  }, [tasks, groupBy, workstreams]);
+  }, [tasks, groupBy, workstreams, statusFilter]);
 
   // Initialize mobile active column for workstream grouping
   useMemo(() => {
@@ -200,12 +211,20 @@ export function KanbanView({
                 No tasks
               </div>
             )}
-            {mobileColumn.tasks.map(task => (
+            {[...mobileColumn.tasks].sort((a: any, b: any) => Number(!!a.parent) - Number(!!b.parent)).map((task, idx, arr) => (
               <div key={task.id} className="relative">
+                {task.parent && (idx === 0 || !arr[idx - 1].parent) && (
+                  <div className="flex items-center gap-2 px-1 pb-1 pt-2">
+                    <CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Subtasks</span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                )}
                 <TaskCard
                   task={task}
                   compact
                   isSelected={selectedTaskId === task.id}
+                  hideId
                   onClick={onSelectTask}
                 />
                 {/* Move to... selector */}
@@ -242,31 +261,54 @@ export function KanbanView({
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 400 }}>
-            {columns.map(col => (
-              <KanbanColumn
-                key={col.id}
-                id={col.id}
-                title={col.title}
-                count={col.tasks.length}
-                color={(col as any).color}
-              >
-                {col.tasks.map(task => (
-                  <KanbanCard
-                    key={task.id}
-                    task={task}
-                    isSelected={selectedTaskId === task.id}
-                    onClick={onSelectTask}
-                  />
-                ))}
-              </KanbanColumn>
-            ))}
+          <div className={cn("flex gap-3 pb-4", columns.length > 3 && "overflow-x-auto")} style={{ minHeight: 400 }}>
+            {columns.map(col => {
+              const parents = col.tasks.filter((t: any) => !t.parent);
+              const subs = col.tasks.filter((t: any) => t.parent);
+              return (
+                <KanbanColumn
+                  key={col.id}
+                  id={col.id}
+                  title={col.title}
+                  count={col.tasks.length}
+                  color={(col as any).color}
+                  grow={columns.length <= 3}
+                >
+                  {parents.map((task: any) => (
+                    <KanbanCard
+                      key={task.id}
+                      task={task}
+                      isSelected={selectedTaskId === task.id}
+                      onClick={onSelectTask}
+                      hideId
+                    />
+                  ))}
+                  {subs.length > 0 && (
+                    <div className="flex items-center gap-2 px-1 pt-2">
+                      <CornerDownRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Subtasks</span>
+                      <span className="rounded-full bg-background px-1.5 text-[10px] text-muted-foreground">{subs.length}</span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                  )}
+                  {subs.map((task: any) => (
+                    <KanbanCard
+                      key={task.id}
+                      task={task}
+                      isSelected={selectedTaskId === task.id}
+                      onClick={onSelectTask}
+                      hideId
+                    />
+                  ))}
+                </KanbanColumn>
+              );
+            })}
           </div>
 
           <DragOverlay>
             {activeTask && (
               <div className="opacity-80 rotate-2">
-                <KanbanCard task={activeTask} isSelected={false} onClick={() => {}} />
+                <KanbanCard task={activeTask} isSelected={false} onClick={() => {}} hideId />
               </div>
             )}
           </DragOverlay>

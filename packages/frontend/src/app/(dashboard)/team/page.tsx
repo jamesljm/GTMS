@@ -25,34 +25,34 @@ import { toast } from "sonner";
 function RoleBadge({ role }: { role: string }) {
   if (role === "SUPER_ADMIN") {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 font-semibold">
+      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/30 font-semibold">
         <ShieldCheck className="h-3 w-3" /> Super Admin
       </span>
     );
   }
   if (role === "ED") {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200 font-semibold">
+      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30 font-semibold">
         <Shield className="h-3 w-3" /> ED
       </span>
     );
   }
   if (role === "HOD") {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 font-medium">
+      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30 font-medium">
         HOD
       </span>
     );
   }
   if (role === "MANAGER") {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium">
+      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 dark:bg-green-500/15 dark:text-green-300 dark:border-green-500/30 font-medium">
         Manager
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 dark:bg-gray-500/15 dark:text-gray-400 dark:border-gray-500/30">
       Staff
     </span>
   );
@@ -339,7 +339,7 @@ export default function TeamPage() {
                           </SelectContent>
                         </Select>
                         <button
-                          className={cn("flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded", a.isPrimary ? "bg-yellow-100 text-yellow-700" : "text-muted-foreground hover:bg-muted")}
+                          className={cn("flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded", a.isPrimary ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300" : "text-muted-foreground hover:bg-muted")}
                           title={a.isPrimary ? "Primary department" : "Set as primary"}
                           onClick={() => setEditAssignments(prev => prev.map((x, i) => ({ ...x, isPrimary: i === idx })))}
                         >
@@ -432,10 +432,10 @@ export default function TeamPage() {
                   <div className="flex items-center gap-4 mt-2 text-sm">
                     <span><span className="font-medium">{member.activeTasks}</span> active</span>
                     {member.overdueTasks > 0 && (
-                      <span className="text-red-600"><span className="font-medium">{member.overdueTasks}</span> overdue</span>
+                      <span className="text-red-600 dark:text-red-400"><span className="font-medium">{member.overdueTasks}</span> overdue</span>
                     )}
                     {member.criticalTasks > 0 && (
-                      <span className="text-orange-600"><span className="font-medium">{member.criticalTasks}</span> critical</span>
+                      <span className="text-orange-600 dark:text-orange-400"><span className="font-medium">{member.criticalTasks}</span> critical</span>
                     )}
                   </div>
                 </>
