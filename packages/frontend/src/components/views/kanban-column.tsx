@@ -38,7 +38,7 @@ export function KanbanColumn({ id, title, count, color, grow, children }: Kanban
       </div>
 
       {/* Cards */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-muted/30 rounded-b-lg" style={{ maxHeight: "calc(100vh - 300px)" }}>
+      <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-muted/30 rounded-b-lg">
         {children}
         {count === 0 && (
           <div className="text-center text-xs text-muted-foreground py-8">

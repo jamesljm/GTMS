@@ -261,7 +261,7 @@ export function KanbanView({
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className={cn("flex gap-3 pb-4", columns.length > 3 && "overflow-x-auto")} style={{ minHeight: 400 }}>
+          <div className={cn("flex gap-3 pb-4", columns.length > 3 && "overflow-x-auto")} style={{ height: "calc(100vh - 210px)", minHeight: 400 }}>
             {columns.map(col => {
               const parents = col.tasks.filter((t: any) => !t.parent);
               const subs = col.tasks.filter((t: any) => t.parent);

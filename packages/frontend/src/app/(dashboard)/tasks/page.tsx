@@ -5,13 +5,12 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useTasks, useInfiniteTasks } from "@/hooks/use-tasks";
 import { useWorkstreams, useUsers } from "@/hooks/use-workstreams";
 import { useDepartments } from "@/hooks/use-departments";
-import { useUIStore } from "@/store/ui-store";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus, List, Kanban, BarChart3, ArrowUpDown,
-  CalendarDays, AlignJustify, LayoutGrid, PanelRight,
+  CalendarDays, LayoutGrid,
 } from "lucide-react";
 import { TaskFormDialog } from "@/components/task-form";
 import { TaskDetailPanel } from "@/components/task-detail-panel";
@@ -22,11 +21,12 @@ import { GanttView } from "@/components/views/gantt-view";
 import { CalendarView } from "@/components/views/calendar-view";
 import { cn } from "@/lib/utils";
 
-type ViewType = "list" | "kanban" | "gantt" | "calendar";
+type ViewType = "list" | "grid" | "kanban" | "gantt" | "calendar";
 type GroupBy = "none" | "workstream" | "assignee" | "priority" | "department";
 
 const VIEW_OPTIONS = [
   { value: "list", label: "List", icon: List },
+  { value: "grid", label: "Grid", icon: LayoutGrid },
   { value: "kanban", label: "Kanban", icon: Kanban },
   { value: "gantt", label: "Gantt", icon: BarChart3 },
   { value: "calendar", label: "Calendar", icon: CalendarDays },
@@ -43,7 +43,6 @@ export default function TasksPage() {
 function TasksContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { viewDensity, setViewDensity, detailPanelMode, setDetailPanelMode } = useUIStore();
 
   const initialView = (searchParams.get("view") as ViewType) || "list";
   const initialTaskId = searchParams.get("task") || null;
@@ -95,7 +94,7 @@ function TasksContent() {
   const [kanbanGroupBy, setKanbanGroupBy] = useState<"status" | "workstream">("status");
   const [listGroupBy, setListGroupBy] = useState<GroupBy>("none");
 
-  const isCompactList = viewDensity === "compact" && activeView === "list";
+  const isCompactList = activeView === "grid";
 
   // Use infinite query for compact list, regular query otherwise
   const regularQuery = useTasks(isCompactList ? {} : { ...filters, search: search || undefined });
@@ -115,7 +114,6 @@ function TasksContent() {
   const { data: users } = useUsers();
   const { data: departments } = useDepartments();
 
-  const isPinned = detailPanelMode === "pinned";
 
   const setFilter = useCallback((key: string, value: string) => {
     setFilters(prev => {
@@ -190,7 +188,7 @@ function TasksContent() {
 
   const viewContent = (
     <>
-      {activeView === "list" && (
+      {(activeView === "list" || activeView === "grid") && (
         <ListView
           tasks={tasks}
           pagination={pagination}
@@ -200,7 +198,7 @@ function TasksContent() {
           onPageChange={handlePageChange}
           groupBy={listGroupBy}
           workstreams={workstreams || []}
-          viewDensity={viewDensity}
+          viewDensity={isCompactList ? "compact" : "default"}
           hasNextPage={isCompactList ? infiniteQuery.hasNextPage : undefined}
           isFetchingNextPage={isCompactList ? infiniteQuery.isFetchingNextPage : undefined}
           onLoadMore={isCompactList ? () => infiniteQuery.fetchNextPage() : undefined}
@@ -274,6 +272,9 @@ function TasksContent() {
                 <TabsTrigger value="list" className="text-xs gap-1 px-3">
                   <List className="h-3.5 w-3.5" /> List
                 </TabsTrigger>
+                <TabsTrigger value="grid" className="text-xs gap-1 px-3">
+                  <LayoutGrid className="h-3.5 w-3.5" /> Grid
+                </TabsTrigger>
                 <TabsTrigger value="kanban" className="text-xs gap-1 px-3">
                   <Kanban className="h-3.5 w-3.5" /> Kanban
                 </TabsTrigger>
@@ -296,38 +297,6 @@ function TasksContent() {
             <Plus className="h-4 w-4 mr-1" /> New Task
           </Button>
 
-          {/* Density toggle - hidden on mobile */}
-          {activeView === "list" && (
-            <div className="hidden sm:flex items-center border rounded-md">
-              <Button
-                size="sm"
-                variant={viewDensity === "default" ? "default" : "ghost"}
-                className="h-8 w-8 p-0 rounded-r-none"
-                onClick={() => setViewDensity("default")}
-              >
-                <AlignJustify className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                size="sm"
-                variant={viewDensity === "compact" ? "default" : "ghost"}
-                className="h-8 w-8 p-0 rounded-l-none"
-                onClick={() => setViewDensity("compact")}
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          )}
-
-          {/* Pin toggle */}
-          <Button
-            size="sm"
-            variant={isPinned ? "default" : "outline"}
-            className="h-8 w-8 p-0 hidden lg:flex"
-            onClick={() => setDetailPanelMode(isPinned ? "overlay" : "pinned")}
-            title={isPinned ? "Unpin detail panel" : "Pin detail panel"}
-          >
-            <PanelRight className="h-3.5 w-3.5" />
-          </Button>
         </div>
         <h1 className="text-lg sm:text-2xl font-bold shrink-0">Tasks</h1>
       </div>
@@ -344,8 +313,8 @@ function TasksContent() {
         departments={departments || []}
       />
 
-      {/* Sort & Group controls for list view */}
-      {activeView === "list" && (
+      {/* Sort & Group controls for list & grid views */}
+      {(activeView === "list" || activeView === "grid") && (
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm">
           {/* Total count */}
           {totalCount > 0 && (
@@ -390,36 +359,15 @@ function TasksContent() {
         </div>
       )}
 
-      {/* Main content area: task views + optional pinned detail panel */}
-      {isPinned ? (
-        <div className="flex gap-0 border rounded-lg overflow-hidden" style={{ height: "calc(100vh - 320px)" }}>
-          {/* Task view area */}
-          <div className="flex-1 min-w-0 overflow-y-auto p-2">
-            {viewContent}
-          </div>
-          {/* Pinned detail panel */}
-          <div className="w-[420px] shrink-0 border-l overflow-y-auto hidden lg:block">
-            <TaskDetailPanel
-              taskId={selectedTaskId}
-              open={!!selectedTaskId}
-              onClose={handleClosePanel}
-              mode="pinned"
-              onNavigateToTask={handleSelectTask}
-            />
-          </div>
-        </div>
-      ) : (
-        <>
-          {viewContent}
-          <TaskDetailPanel
-            taskId={selectedTaskId}
-            open={!!selectedTaskId}
-            onClose={handleClosePanel}
-            mode="overlay"
-            onNavigateToTask={handleSelectTask}
-          />
-        </>
-      )}
+      {/* Main content area: task views + detail panel (opens when a task is selected) */}
+      {viewContent}
+      <TaskDetailPanel
+        taskId={selectedTaskId}
+        open={!!selectedTaskId}
+        onClose={handleClosePanel}
+        mode="overlay"
+        onNavigateToTask={handleSelectTask}
+      />
 
       {/* Create task dialog */}
       <TaskFormDialog

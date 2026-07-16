@@ -75,6 +75,8 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
 
   // Ultra compact: minimal single-line card
   if (ultraCompact) {
+    const totalSub = task.subtasks?.length ?? task._count?.subtasks ?? 0;
+    const doneSub = task.subtasks?.filter((s) => s.status === "Done").length ?? 0;
     return (
       <div
         role={onClick ? "button" : undefined}
@@ -93,6 +95,11 @@ export function TaskCard({ task, compact = false, ultraCompact = false, isSelect
         <span className={cn("text-xs font-medium truncate flex-1", task.status === "Done" && "line-through text-muted-foreground")}>
           {task.title}
         </span>
+        {totalSub > 0 && (
+          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground shrink-0" title={`${doneSub}/${totalSub} subtasks`}>
+            <CheckCircle2 className="h-3 w-3" />{doneSub}/{totalSub}
+          </span>
+        )}
         {task.dueDate && (
           <span className={cn("text-[10px] whitespace-nowrap shrink-0", isOverdue ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
             {format(new Date(task.dueDate), "dd/MM")}
