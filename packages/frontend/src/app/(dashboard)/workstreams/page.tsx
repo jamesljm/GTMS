@@ -99,7 +99,14 @@ export default function WorkstreamsPage() {
   };
 
   const handleAddWs = async () => {
-    if (!newWs.code || !newWs.name) return;
+    if (!newWs.code.trim()) {
+      toast.error("Code is required.");
+      return;
+    }
+    if (!newWs.name.trim()) {
+      toast.error("Name is required.");
+      return;
+    }
     const { departmentId, addDeptMembers, ...rest } = newWs;
     const result = await createWorkstream.mutateAsync({
       ...rest,
