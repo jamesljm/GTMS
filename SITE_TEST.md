@@ -7,15 +7,17 @@ Track issues found in `BUGS.md`.
 ---
 
 ## Auth
-- [ ] Email/password login (`ed@gtms.com` / `Admin1234`)
-- [ ] Microsoft SSO login
-- [ ] Sign out → sign back in (session persists)
-- [ ] Access `/tasks` while logged out → redirects to login
-- [ ] Public `/signup` page (decide: keep or remove?)
+- [x] Email/password login (`ed@gtms.com` / `Admin1234`)
+- [x] Microsoft SSO login
+- [x] Sign out → sign back in (session persists)
+- [x] Access `/tasks` while logged out → redirects to login
+* went to blank screen
+- [x] Public `/signup` page (decide: keep or remove?)
+* query ms jie min, want to keep or just change to "First time sign in" for admin created user?
 
 ## Departments
-- [ ] Create new department
-- [ ] Edit department (name, code, color, head)
+- [x] Create new department
+- [x] Edit department (name, code, color, head)
 - [ ] Delete department
 - [ ] Assign HOD
 
